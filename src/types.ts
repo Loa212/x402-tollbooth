@@ -43,6 +43,7 @@ export interface RouteConfig {
 	accepts?: AcceptedPayment[];
 	payTo?: string | PayToSplit[];
 	hooks?: RouteHooksConfig;
+	metadata?: Record<string, unknown>;
 }
 
 export interface MatchRule {
@@ -108,10 +109,10 @@ export interface ErrorHookContext extends HookContext {
 	error: TollboothError;
 }
 
-export type RequestHook = (ctx: RequestHookContext) => Promise<HookResult | void>;
-export type PriceResolvedHook = (ctx: HookContext) => Promise<HookResult | void>;
-export type SettledHook = (ctx: SettledHookContext) => Promise<HookResult | void>;
-export type ResponseHook = (ctx: ResponseHookContext) => Promise<UpstreamResponse | void>;
+export type RequestHook = (ctx: RequestHookContext) => Promise<HookResult | undefined>;
+export type PriceResolvedHook = (ctx: HookContext) => Promise<HookResult | undefined>;
+export type SettledHook = (ctx: SettledHookContext) => Promise<HookResult | undefined>;
+export type ResponseHook = (ctx: ResponseHookContext) => Promise<UpstreamResponse | undefined>;
 export type ErrorHook = (ctx: ErrorHookContext) => Promise<void>;
 
 export interface HookResult {

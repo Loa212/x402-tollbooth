@@ -79,6 +79,25 @@ describe("tollboothConfigSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
+	test("accepts route with freeform metadata", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					price: "$0.01",
+					metadata: {
+						category: "medical",
+						capabilities: ["diagnosis", "drug-interaction"],
+						model: "llama-3-medical",
+						sla: { avg_response_ms: 2000 },
+					},
+				},
+			},
+		});
+		expect(result.success).toBe(true);
+	});
+
 	test("rejects invalid upstream url", () => {
 		const result = tollboothConfigSchema.safeParse({
 			...validConfig,

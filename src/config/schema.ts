@@ -42,6 +42,7 @@ const routeConfigSchema = z.object({
 	accepts: z.array(acceptedPaymentSchema).optional(),
 	payTo: payToSchema.optional(),
 	hooks: routeHooksSchema,
+	metadata: z.record(z.unknown()).optional(),
 });
 
 const upstreamConfigSchema = z.object({

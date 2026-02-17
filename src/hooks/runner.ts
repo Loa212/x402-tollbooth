@@ -54,7 +54,7 @@ export async function runOnRequest(
 	ctx: RequestHookContext,
 	routeHooks?: RouteHooksConfig,
 	globalHooks?: GlobalHooksConfig,
-): Promise<HookResult | void> {
+): Promise<HookResult | undefined> {
 	const path = resolveHookPath("onRequest", routeHooks, globalHooks);
 	if (!path) return;
 
@@ -69,7 +69,7 @@ export async function runOnPriceResolved(
 	ctx: HookContext,
 	routeHooks?: RouteHooksConfig,
 	globalHooks?: GlobalHooksConfig,
-): Promise<HookResult | void> {
+): Promise<HookResult | undefined> {
 	const path = resolveHookPath("onPriceResolved", routeHooks, globalHooks);
 	if (!path) return;
 
@@ -84,7 +84,7 @@ export async function runOnSettled(
 	ctx: SettledHookContext,
 	routeHooks?: RouteHooksConfig,
 	globalHooks?: GlobalHooksConfig,
-): Promise<HookResult | void> {
+): Promise<HookResult | undefined> {
 	const path = resolveHookPath("onSettled", routeHooks, globalHooks);
 	if (!path) return;
 
@@ -99,7 +99,7 @@ export async function runOnResponse(
 	ctx: ResponseHookContext,
 	routeHooks?: RouteHooksConfig,
 	globalHooks?: GlobalHooksConfig,
-): Promise<UpstreamResponse | void> {
+): Promise<UpstreamResponse | undefined> {
 	const path = resolveHookPath("onResponse", routeHooks, globalHooks);
 	if (!path) return;
 

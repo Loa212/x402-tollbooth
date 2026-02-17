@@ -15,6 +15,7 @@ export interface DiscoveryEndpoint {
 		defaultPrice?: string;
 	};
 	accepts: { asset: string; network: string }[];
+	metadata?: Record<string, unknown>;
 }
 
 /**
@@ -45,6 +46,7 @@ export function generateDiscoveryMetadata(config: TollboothConfig): DiscoveryMet
 			path,
 			pricing: { type: pricingType, defaultPrice },
 			accepts: accepts.map((a) => ({ asset: a.asset, network: a.network })),
+			...(route.metadata && { metadata: route.metadata }),
 		});
 	}
 
