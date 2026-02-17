@@ -77,7 +77,10 @@ describe("tollboothConfigSchema", () => {
 	});
 
 	test("rejects empty accepts", () => {
-		const result = tollboothConfigSchema.safeParse({ ...validConfig, accepts: [] });
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			accepts: [],
+		});
 		expect(result.success).toBe(false);
 	});
 

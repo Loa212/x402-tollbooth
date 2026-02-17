@@ -22,7 +22,9 @@ export interface DiscoveryEndpoint {
  * Generate x402 V2 discovery metadata from the config.
  * This is served at /.well-known/x402 for facilitator crawling.
  */
-export function generateDiscoveryMetadata(config: TollboothConfig): DiscoveryMetadata {
+export function generateDiscoveryMetadata(
+	config: TollboothConfig,
+): DiscoveryMetadata {
 	const endpoints: DiscoveryEndpoint[] = [];
 
 	for (const [routeKey, route] of Object.entries(config.routes)) {

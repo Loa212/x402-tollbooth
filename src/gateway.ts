@@ -17,11 +17,11 @@ import type {
 	TollboothGateway,
 	TollboothRequest,
 } from "./types.js";
-import { HEADERS, encodePaymentResponse } from "./x402/headers.js";
+import { encodePaymentResponse, HEADERS } from "./x402/headers.js";
 import {
-	PaymentError,
 	buildPaymentRequirements,
 	createPaymentRequiredResponse,
+	PaymentError,
 	processPayment,
 } from "./x402/middleware.js";
 
@@ -76,7 +76,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 		}
 
 		// Buffer body if needed for matching
-		let parsedBody: unknown = undefined;
+		let parsedBody: unknown;
 		let rawBody: ArrayBuffer | undefined;
 		const needsBody = routeNeedsBody(route);
 
@@ -98,7 +98,11 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 
 		try {
 			// ── Hook: onRequest ───────────────────────────────────────────────
-			const onRequestResult = await runOnRequest({ req: tollboothReq }, route.hooks, config.hooks);
+			const onRequestResult = await runOnRequest(
+				{ req: tollboothReq },
+				route.hooks,
+				config.hooks,
+			);
 			if (onRequestResult?.reject) {
 				return new Response(onRequestResult.body ?? "Rejected", {
 					status: onRequestResult.status ?? 403,
@@ -116,7 +120,9 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 			});
 
 			// Determine upstream path
-			const upstreamPath = route.path ? rewritePath(route.path, params, query) : url.pathname;
+			const upstreamPath = route.path
+				? rewritePath(route.path, params, query)
+				: url.pathname;
 
 			const resolvedRoute: ResolvedRoute = {
 				upstream,
@@ -166,9 +172,12 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				config.hooks,
 			);
 			if (onSettledResult?.reject) {
-				return new Response(onSettledResult.body ?? "Rejected after settlement", {
-					status: onSettledResult.status ?? 403,
-				});
+				return new Response(
+					onSettledResult.body ?? "Rejected after settlement",
+					{
+						status: onSettledResult.status ?? 403,
+					},
+				);
 			}
 
 			// ── Proxy to upstream ────────────────────────────────────────────
@@ -177,7 +186,12 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				rawBody = await request.arrayBuffer();
 			}
 
-			const upstreamResponse = await proxyRequest(upstream, upstreamPath, request, rawBody);
+			const upstreamResponse = await proxyRequest(
+				upstream,
+				upstreamPath,
+				request,
+				rawBody,
+			);
 
 			// ── Hook: onResponse ─────────────────────────────────────────────
 			const modifiedResponse = await runOnResponse(
@@ -195,12 +209,18 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 
 			// Build the final HTTP response
 			const responseHeaders = new Headers(finalResponse.headers);
-			responseHeaders.set(HEADERS.PAYMENT_RESPONSE, encodePaymentResponse(settlement));
+			responseHeaders.set(
+				HEADERS.PAYMENT_RESPONSE,
+				encodePaymentResponse(settlement),
+			);
 
-			return new Response(finalResponse.body as string | ReadableStream | null, {
-				status: finalResponse.status,
-				headers: responseHeaders,
-			});
+			return new Response(
+				finalResponse.body as string | ReadableStream | null,
+				{
+					status: finalResponse.status,
+					headers: responseHeaders,
+				},
+			);
 		} catch (error) {
 			// ── Hook: onError ────────────────────────────────────────────────
 			if (error instanceof PaymentError) {
@@ -210,7 +230,9 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				});
 			}
 
-			const upstreamPath = route.path ? rewritePath(route.path, params, query) : url.pathname;
+			const upstreamPath = route.path
+				? rewritePath(route.path, params, query)
+				: url.pathname;
 
 			const resolvedRoute: ResolvedRoute = {
 				upstream,
@@ -255,9 +277,13 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				hostname: config.gateway.hostname,
 				fetch: handleRequest,
 			});
-			console.log(`⛩️  tollbooth running on http://localhost:${config.gateway.port}`);
+			console.log(
+				`⛩️  tollbooth running on http://localhost:${config.gateway.port}`,
+			);
 			if (discoveryPayload) {
-				console.log(`📡 discovery at http://localhost:${config.gateway.port}/.well-known/x402`);
+				console.log(
+					`📡 discovery at http://localhost:${config.gateway.port}/.well-known/x402`,
+				);
 			}
 		},
 		async stop() {

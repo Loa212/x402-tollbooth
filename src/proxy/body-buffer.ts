@@ -7,7 +7,9 @@ import type { RouteConfig } from "../types.js";
 export function routeNeedsBody(route: RouteConfig): boolean {
 	if (!route.match) return false;
 
-	return route.match.some((rule) => Object.keys(rule.where).some((key) => key.startsWith("body.")));
+	return route.match.some((rule) =>
+		Object.keys(rule.where).some((key) => key.startsWith("body.")),
+	);
 }
 
 /**
@@ -18,7 +20,7 @@ export async function bufferRequestBody(
 	request: Request,
 ): Promise<{ parsed: unknown; raw: ArrayBuffer }> {
 	const raw = await request.arrayBuffer();
-	let parsed: unknown = undefined;
+	let parsed: unknown;
 
 	const contentType = request.headers.get("content-type") ?? "";
 	if (contentType.includes("application/json")) {

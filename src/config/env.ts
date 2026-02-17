@@ -17,7 +17,9 @@ export function interpolateEnv<T>(value: T): T {
 			}
 			const envValue = process.env[trimmed];
 			if (envValue === undefined) {
-				throw new Error(`Environment variable "${trimmed}" is not set (referenced in config)`);
+				throw new Error(
+					`Environment variable "${trimmed}" is not set (referenced in config)`,
+				);
 			}
 			return envValue;
 		}) as T;

@@ -14,7 +14,9 @@ export function rewritePath(
 			const map = source === "params" ? params : query;
 			const value = map[key];
 			if (value === undefined) {
-				throw new Error(`Path rewrite references "${source}.${key}" but it is not available`);
+				throw new Error(
+					`Path rewrite references "${source}.${key}" but it is not available`,
+				);
 			}
 			return encodeURIComponent(value);
 		},
@@ -26,7 +28,10 @@ export function rewritePath(
  * e.g. pattern "GET /data/dune/:query_id" matched against "GET /data/dune/12345"
  *   → { query_id: "12345" }
  */
-export function extractParams(pattern: string, actualPath: string): Record<string, string> | null {
+export function extractParams(
+	pattern: string,
+	actualPath: string,
+): Record<string, string> | null {
 	// Split "METHOD /path" → just the path part
 	const patternPath = pattern.includes(" ") ? pattern.split(" ")[1] : pattern;
 	const patternSegments = patternPath.split("/").filter(Boolean);

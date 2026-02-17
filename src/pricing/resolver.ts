@@ -1,5 +1,10 @@
 import { evaluateMatchers } from "../router/matcher.js";
-import type { PayToSplit, PricingFn, RouteConfig, TollboothConfig } from "../types.js";
+import type {
+	PayToSplit,
+	PricingFn,
+	RouteConfig,
+	TollboothConfig,
+} from "../types.js";
 import { parsePrice } from "./parser.js";
 
 export interface ResolvedPrice {
@@ -27,7 +32,9 @@ interface ResolveInput {
  * 3. route.fallback
  * 4. config.defaults.price
  */
-export async function resolvePrice(input: ResolveInput): Promise<ResolvedPrice> {
+export async function resolvePrice(
+	input: ResolveInput,
+): Promise<ResolvedPrice> {
 	const { route, config } = input;
 	const accepts = route.accepts ?? config.accepts;
 	const primaryAccept = accepts[0];
@@ -100,7 +107,9 @@ async function resolvePriceValue(
 	const pricingFn: PricingFn = pricingModule.default;
 
 	if (typeof pricingFn !== "function") {
-		throw new Error(`Pricing function "${price.fn}" must export a default function`);
+		throw new Error(
+			`Pricing function "${price.fn}" must export a default function`,
+		);
 	}
 
 	const result = await pricingFn({

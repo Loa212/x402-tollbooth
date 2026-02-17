@@ -33,7 +33,9 @@ export function matchRoute(
 
 		const upstream = config.upstreams[route.upstream];
 		if (!upstream) {
-			throw new Error(`Route "${routeKey}" references unknown upstream "${route.upstream}"`);
+			throw new Error(
+				`Route "${routeKey}" references unknown upstream "${route.upstream}"`,
+			);
 		}
 
 		return { routeKey, route, upstream, params };
@@ -45,7 +47,9 @@ export function matchRoute(
 function parseRouteKey(key: string): [method: string, path: string] {
 	const spaceIndex = key.indexOf(" ");
 	if (spaceIndex === -1) {
-		throw new Error(`Invalid route key "${key}". Expected format: "METHOD /path"`);
+		throw new Error(
+			`Invalid route key "${key}". Expected format: "METHOD /path"`,
+		);
 	}
 	return [key.slice(0, spaceIndex).toUpperCase(), key.slice(spaceIndex + 1)];
 }

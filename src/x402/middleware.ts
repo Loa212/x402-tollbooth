@@ -1,7 +1,15 @@
 import type { ResolvedPrice } from "../pricing/resolver.js";
 import type { AcceptedPayment, SettlementInfo } from "../types.js";
-import { settlePayment, toSettlementInfo, verifyPayment } from "./facilitator.js";
-import { HEADERS, decodePaymentSignature, encodePaymentRequired } from "./headers.js";
+import {
+	settlePayment,
+	toSettlementInfo,
+	verifyPayment,
+} from "./facilitator.js";
+import {
+	decodePaymentSignature,
+	encodePaymentRequired,
+	HEADERS,
+} from "./headers.js";
 
 export interface PaymentRequirementsPayload {
 	scheme: string;
@@ -24,7 +32,10 @@ export function buildPaymentRequirements(
 	timeout: number,
 	accepts: AcceptedPayment[],
 ): PaymentRequirementsPayload[] {
-	const payTo = typeof price.payTo === "string" ? price.payTo : (price.payTo[0]?.address ?? "");
+	const payTo =
+		typeof price.payTo === "string"
+			? price.payTo
+			: (price.payTo[0]?.address ?? "");
 
 	return accepts.map((accept) => ({
 		scheme: "exact",
@@ -44,7 +55,9 @@ export function buildPaymentRequirements(
 export function createPaymentRequiredResponse(
 	requirements: PaymentRequirementsPayload[],
 ): Response {
-	const body = JSON.stringify({ accepts: requirements.map((r) => ({ paymentRequirements: r })) });
+	const body = JSON.stringify({
+		accepts: requirements.map((r) => ({ paymentRequirements: r })),
+	});
 	const encoded = encodePaymentRequired(requirements);
 
 	return new Response(body, {

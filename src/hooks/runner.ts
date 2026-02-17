@@ -15,7 +15,12 @@ import type {
 	UpstreamResponse,
 } from "../types.js";
 
-type HookFn = RequestHook | PriceResolvedHook | SettledHook | ResponseHook | ErrorHook;
+type HookFn =
+	| RequestHook
+	| PriceResolvedHook
+	| SettledHook
+	| ResponseHook
+	| ErrorHook;
 const hookCache = new Map<string, HookFn>();
 
 /**

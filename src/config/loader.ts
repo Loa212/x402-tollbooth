@@ -22,7 +22,9 @@ export function loadConfig(configPath?: string): TollboothConfig {
 	const filePath = configPath ? resolve(configPath) : findConfig();
 
 	if (!filePath) {
-		throw new Error(`No tollbooth config found. Create one of: ${CONFIG_FILENAMES.join(", ")}`);
+		throw new Error(
+			`No tollbooth config found. Create one of: ${CONFIG_FILENAMES.join(", ")}`,
+		);
 	}
 
 	if (!existsSync(filePath)) {

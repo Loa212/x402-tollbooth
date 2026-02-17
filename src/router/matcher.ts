@@ -11,7 +11,10 @@ interface MatchInput {
  * Evaluate match rules top-to-bottom against request data.
  * Returns the first matching rule, or undefined if none match.
  */
-export function evaluateMatchers(rules: MatchRule[], input: MatchInput): MatchRule | undefined {
+export function evaluateMatchers(
+	rules: MatchRule[],
+	input: MatchInput,
+): MatchRule | undefined {
 	for (const rule of rules) {
 		if (matchesWhere(rule.where, input)) {
 			return rule;
@@ -65,7 +68,11 @@ function resolvePath(path: string, input: MatchInput): unknown {
 	}
 
 	for (let i = 1; i < segments.length; i++) {
-		if (current === null || current === undefined || typeof current !== "object") {
+		if (
+			current === null ||
+			current === undefined ||
+			typeof current !== "object"
+		) {
 			return undefined;
 		}
 		current = (current as Record<string, unknown>)[segments[i]];
@@ -78,7 +85,10 @@ function resolvePath(path: string, input: MatchInput): unknown {
  * Match a resolved value against an expected value.
  * String values support glob patterns with *.
  */
-function matchesValue(actual: unknown, expected: string | number | boolean): boolean {
+function matchesValue(
+	actual: unknown,
+	expected: string | number | boolean,
+): boolean {
 	if (actual === undefined || actual === null) {
 		return false;
 	}
@@ -99,7 +109,9 @@ function globMatch(value: string, pattern: string): boolean {
 		return value === pattern;
 	}
 
-	const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+	const escaped = pattern
+		.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+		.replace(/\*/g, ".*");
 	const regex = new RegExp(`^${escaped}$`);
 	return regex.test(value);
 }

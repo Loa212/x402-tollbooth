@@ -40,7 +40,9 @@ describe("evaluateMatchers", () => {
 	});
 
 	test("matches exact string (no glob)", () => {
-		const exactRules: MatchRule[] = [{ where: { "query.format": "csv" }, price: "$0.01" }];
+		const exactRules: MatchRule[] = [
+			{ where: { "query.format": "csv" }, price: "$0.01" },
+		];
 		const result = evaluateMatchers(exactRules, {
 			query: { format: "csv" },
 			headers: {},
@@ -50,7 +52,9 @@ describe("evaluateMatchers", () => {
 	});
 
 	test("matches nested body field", () => {
-		const nestedRules: MatchRule[] = [{ where: { "body.options.stream": true }, price: "$0.02" }];
+		const nestedRules: MatchRule[] = [
+			{ where: { "body.options.stream": true }, price: "$0.02" },
+		];
 		const result = evaluateMatchers(nestedRules, {
 			body: { options: { stream: true } },
 			query: {},

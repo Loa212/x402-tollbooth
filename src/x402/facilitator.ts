@@ -37,7 +37,9 @@ export async function verifyPayment(
 	});
 
 	if (!response.ok) {
-		throw new Error(`Facilitator verify failed: ${response.status} ${response.statusText}`);
+		throw new Error(
+			`Facilitator verify failed: ${response.status} ${response.statusText}`,
+		);
 	}
 
 	return (await response.json()) as VerifyResult;
@@ -60,7 +62,9 @@ export async function settlePayment(
 	});
 
 	if (!response.ok) {
-		throw new Error(`Facilitator settle failed: ${response.status} ${response.statusText}`);
+		throw new Error(
+			`Facilitator settle failed: ${response.status} ${response.statusText}`,
+		);
 	}
 
 	return (await response.json()) as SettleResult;

@@ -109,10 +109,18 @@ export interface ErrorHookContext extends HookContext {
 	error: TollboothError;
 }
 
-export type RequestHook = (ctx: RequestHookContext) => Promise<HookResult | undefined>;
-export type PriceResolvedHook = (ctx: HookContext) => Promise<HookResult | undefined>;
-export type SettledHook = (ctx: SettledHookContext) => Promise<HookResult | undefined>;
-export type ResponseHook = (ctx: ResponseHookContext) => Promise<UpstreamResponse | undefined>;
+export type RequestHook = (
+	ctx: RequestHookContext,
+) => Promise<HookResult | undefined>;
+export type PriceResolvedHook = (
+	ctx: HookContext,
+) => Promise<HookResult | undefined>;
+export type SettledHook = (
+	ctx: SettledHookContext,
+) => Promise<HookResult | undefined>;
+export type ResponseHook = (
+	ctx: ResponseHookContext,
+) => Promise<UpstreamResponse | undefined>;
 export type ErrorHook = (ctx: ErrorHookContext) => Promise<void>;
 
 export interface HookResult {
@@ -161,7 +169,9 @@ export interface PricingFnInput {
 	params: Record<string, string>;
 }
 
-export type PricingFn = (input: PricingFnInput) => string | number | Promise<string | number>;
+export type PricingFn = (
+	input: PricingFnInput,
+) => string | number | Promise<string | number>;
 
 // ── Gateway ──────────────────────────────────────────────────────────────────
 
