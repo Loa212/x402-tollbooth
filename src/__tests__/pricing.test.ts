@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parsePrice, formatPrice } from "../pricing/parser.js";
+import { formatPrice, parsePrice } from "../pricing/parser.js";
 
 describe("parsePrice", () => {
 	test("parses dollar amount with $ prefix", () => {

@@ -8,14 +8,17 @@ export function rewritePath(
 	params: Record<string, string>,
 	query: Record<string, string>,
 ): string {
-	return template.replace(/\$\{(params|query)\.([^}]+)\}/g, (_match, source: string, key: string) => {
-		const map = source === "params" ? params : query;
-		const value = map[key];
-		if (value === undefined) {
-			throw new Error(`Path rewrite references "${source}.${key}" but it is not available`);
-		}
-		return encodeURIComponent(value);
-	});
+	return template.replace(
+		/\$\{(params|query)\.([^}]+)\}/g,
+		(_match, source: string, key: string) => {
+			const map = source === "params" ? params : query;
+			const value = map[key];
+			if (value === undefined) {
+				throw new Error(`Path rewrite references "${source}.${key}" but it is not available`);
+			}
+			return encodeURIComponent(value);
+		},
+	);
 }
 
 /**

@@ -1,5 +1,5 @@
 {
-  "name": "tollbooth",
+  "name": "x402-tollbooth",
   "version": "0.1.0",
   "description": "Turn any API into a paid x402 API gateway. YAML config, dynamic pricing, multi-upstream proxy.",
   "type": "module",
@@ -7,7 +7,8 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "tollbooth": "./dist/cli.js"
+    "tollbooth": "./dist/cli.js",
+    "x402-tollbooth": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -53,6 +54,14 @@
   ],
   "author": "Loa212",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Loa212/x402-tollbooth.git"
+  },
+  "homepage": "https://github.com/Loa212/x402-tollbooth#readme",
+  "bugs": {
+    "url": "https://github.com/Loa212/x402-tollbooth/issues"
+  },
   "engines": {
     "bun": ">=1.0.0"
   }

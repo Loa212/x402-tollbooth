@@ -1,29 +1,29 @@
+import { generateDiscoveryMetadata } from "./discovery/metadata.js";
+import {
+	runOnError,
+	runOnPriceResolved,
+	runOnRequest,
+	runOnResponse,
+	runOnSettled,
+} from "./hooks/runner.js";
+import { resolvePrice } from "./pricing/resolver.js";
+import { bufferRequestBody, routeNeedsBody } from "./proxy/body-buffer.js";
+import { proxyRequest } from "./proxy/proxy.js";
+import { rewritePath } from "./router/rewriter.js";
+import { matchRoute } from "./router/router.js";
 import type {
+	ResolvedRoute,
 	TollboothConfig,
 	TollboothGateway,
 	TollboothRequest,
-	ResolvedRoute,
 } from "./types.js";
-import { matchRoute } from "./router/router.js";
-import { rewritePath } from "./router/rewriter.js";
-import { resolvePrice } from "./pricing/resolver.js";
-import { routeNeedsBody, bufferRequestBody } from "./proxy/body-buffer.js";
-import { proxyRequest } from "./proxy/proxy.js";
+import { HEADERS, encodePaymentResponse } from "./x402/headers.js";
 import {
+	PaymentError,
 	buildPaymentRequirements,
 	createPaymentRequiredResponse,
 	processPayment,
-	PaymentError,
 } from "./x402/middleware.js";
-import { HEADERS, encodePaymentResponse } from "./x402/headers.js";
-import { generateDiscoveryMetadata } from "./discovery/metadata.js";
-import {
-	runOnRequest,
-	runOnPriceResolved,
-	runOnSettled,
-	runOnResponse,
-	runOnError,
-} from "./hooks/runner.js";
 
 /**
  * Create a tollbooth gateway from a validated config.
@@ -98,11 +98,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 
 		try {
 			// ── Hook: onRequest ───────────────────────────────────────────────
-			const onRequestResult = await runOnRequest(
-				{ req: tollboothReq },
-				route.hooks,
-				config.hooks,
-			);
+			const onRequestResult = await runOnRequest({ req: tollboothReq }, route.hooks, config.hooks);
 			if (onRequestResult?.reject) {
 				return new Response(onRequestResult.body ?? "Rejected", {
 					status: onRequestResult.status ?? 403,
@@ -120,9 +116,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 			});
 
 			// Determine upstream path
-			const upstreamPath = route.path
-				? rewritePath(route.path, params, query)
-				: url.pathname;
+			const upstreamPath = route.path ? rewritePath(route.path, params, query) : url.pathname;
 
 			const resolvedRoute: ResolvedRoute = {
 				upstream,
@@ -183,12 +177,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				rawBody = await request.arrayBuffer();
 			}
 
-			const upstreamResponse = await proxyRequest(
-				upstream,
-				upstreamPath,
-				request,
-				rawBody,
-			);
+			const upstreamResponse = await proxyRequest(upstream, upstreamPath, request, rawBody);
 
 			// ── Hook: onResponse ─────────────────────────────────────────────
 			const modifiedResponse = await runOnResponse(
@@ -206,10 +195,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 
 			// Build the final HTTP response
 			const responseHeaders = new Headers(finalResponse.headers);
-			responseHeaders.set(
-				HEADERS.PAYMENT_RESPONSE,
-				encodePaymentResponse(settlement),
-			);
+			responseHeaders.set(HEADERS.PAYMENT_RESPONSE, encodePaymentResponse(settlement));
 
 			return new Response(finalResponse.body as string | ReadableStream | null, {
 				status: finalResponse.status,
@@ -224,9 +210,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				});
 			}
 
-			const upstreamPath = route.path
-				? rewritePath(route.path, params, query)
-				: url.pathname;
+			const upstreamPath = route.path ? rewritePath(route.path, params, query) : url.pathname;
 
 			const resolvedRoute: ResolvedRoute = {
 				upstream,
@@ -251,13 +235,10 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				config.hooks,
 			);
 
-			return new Response(
-				JSON.stringify({ error: "Internal gateway error" }),
-				{
-					status: 502,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+			return new Response(JSON.stringify({ error: "Internal gateway error" }), {
+				status: 502,
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 	}
 

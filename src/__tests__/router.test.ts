@@ -32,20 +32,12 @@ describe("extractParams", () => {
 
 describe("rewritePath", () => {
 	test("interpolates params", () => {
-		const result = rewritePath(
-			"/v1/query/${params.query_id}/results",
-			{ query_id: "12345" },
-			{},
-		);
+		const result = rewritePath("/v1/query/${params.query_id}/results", { query_id: "12345" }, {});
 		expect(result).toBe("/v1/query/12345/results");
 	});
 
 	test("interpolates query", () => {
-		const result = rewritePath(
-			"/search/${query.q}",
-			{},
-			{ q: "hello world" },
-		);
+		const result = rewritePath("/search/${query.q}", {}, { q: "hello world" });
 		expect(result).toBe("/search/hello%20world");
 	});
 

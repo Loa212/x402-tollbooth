@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { interpolateEnv } from "../config/env.js";
 import { tollboothConfigSchema } from "../config/schema.js";
 
@@ -9,8 +9,8 @@ describe("interpolateEnv", () => {
 	});
 
 	afterEach(() => {
-		delete process.env.TEST_API_KEY;
-		delete process.env.TEST_WALLET;
+		process.env.TEST_API_KEY = undefined;
+		process.env.TEST_WALLET = undefined;
 	});
 
 	test("interpolates env vars in strings", () => {
@@ -30,7 +30,9 @@ describe("interpolateEnv", () => {
 	});
 
 	test("throws on missing env var", () => {
-		expect(() => interpolateEnv("${MISSING_VAR}")).toThrow('Environment variable "MISSING_VAR" is not set');
+		expect(() => interpolateEnv("${MISSING_VAR}")).toThrow(
+			'Environment variable "MISSING_VAR" is not set',
+		);
 	});
 
 	test("passes through non-string values", () => {

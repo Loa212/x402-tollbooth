@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { TollboothConfig } from "../types.js";
@@ -22,9 +22,7 @@ export function loadConfig(configPath?: string): TollboothConfig {
 	const filePath = configPath ? resolve(configPath) : findConfig();
 
 	if (!filePath) {
-		throw new Error(
-			`No tollbooth config found. Create one of: ${CONFIG_FILENAMES.join(", ")}`,
-		);
+		throw new Error(`No tollbooth config found. Create one of: ${CONFIG_FILENAMES.join(", ")}`);
 	}
 
 	if (!existsSync(filePath)) {

@@ -15,10 +15,7 @@ switch (command) {
 			const gateway = createGateway(config);
 			await gateway.start();
 		} catch (error) {
-			console.error(
-				"❌",
-				error instanceof Error ? error.message : "Failed to start tollbooth",
-			);
+			console.error("❌", error instanceof Error ? error.message : "Failed to start tollbooth");
 			process.exit(1);
 		}
 		break;
@@ -30,19 +27,14 @@ switch (command) {
 			const config = loadConfig(configPath);
 			const routeCount = Object.keys(config.routes).length;
 			const upstreamCount = Object.keys(config.upstreams).length;
-			console.log(`✅ Config is valid`);
+			console.log("✅ Config is valid");
 			console.log(`   ${upstreamCount} upstream(s), ${routeCount} route(s)`);
 		} catch (error) {
-			console.error(
-				"❌",
-				error instanceof Error ? error.message : "Invalid config",
-			);
+			console.error("❌", error instanceof Error ? error.message : "Invalid config");
 			process.exit(1);
 		}
 		break;
 	}
-
-	case "help":
 	default:
 		console.log(`
 ⛩️  tollbooth — Turn any API into a paid x402 API

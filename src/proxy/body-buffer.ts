@@ -7,9 +7,7 @@ import type { RouteConfig } from "../types.js";
 export function routeNeedsBody(route: RouteConfig): boolean {
 	if (!route.match) return false;
 
-	return route.match.some((rule) =>
-		Object.keys(rule.where).some((key) => key.startsWith("body.")),
-	);
+	return route.match.some((rule) => Object.keys(rule.where).some((key) => key.startsWith("body.")));
 }
 
 /**

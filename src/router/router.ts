@@ -1,4 +1,4 @@
-import type { TollboothConfig, RouteConfig, UpstreamConfig } from "../types.js";
+import type { RouteConfig, TollboothConfig, UpstreamConfig } from "../types.js";
 import { extractParams } from "./rewriter.js";
 
 export interface MatchedRoute {

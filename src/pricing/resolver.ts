@@ -1,10 +1,5 @@
-import type {
-	RouteConfig,
-	TollboothConfig,
-	PricingFn,
-	PayToSplit,
-} from "../types.js";
 import { evaluateMatchers } from "../router/matcher.js";
+import type { PayToSplit, PricingFn, RouteConfig, TollboothConfig } from "../types.js";
 import { parsePrice } from "./parser.js";
 
 export interface ResolvedPrice {
