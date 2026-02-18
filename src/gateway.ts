@@ -156,7 +156,15 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				accepts,
 			);
 
-			const settlement = await processPayment(request, requirements);
+			// Resolve facilitator: route-level > top-level > default
+			const facilitatorUrl = route.facilitator ?? config.facilitator;
+			const facilitator = facilitatorUrl ? { url: facilitatorUrl } : undefined;
+
+			const settlement = await processPayment(
+				request,
+				requirements,
+				facilitator,
+			);
 
 			if (!settlement) {
 				// No payment header → return 402

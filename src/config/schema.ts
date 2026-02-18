@@ -43,6 +43,7 @@ const routeConfigSchema = z.object({
 	payTo: payToSchema.optional(),
 	hooks: routeHooksSchema,
 	metadata: z.record(z.unknown()).optional(),
+	facilitator: z.string().url().optional(),
 });
 
 const upstreamConfigSchema = z.object({
@@ -76,6 +77,8 @@ export const tollboothConfigSchema = z.object({
 	routes: z.record(routeConfigSchema),
 
 	hooks: routeHooksSchema,
+
+	facilitator: z.string().url().optional(),
 });
 
 export type TollboothConfigInput = z.input<typeof tollboothConfigSchema>;

@@ -1,6 +1,7 @@
 import type { ResolvedPrice } from "../pricing/resolver.js";
 import type { AcceptedPayment, SettlementInfo } from "../types.js";
 import {
+	type FacilitatorConfig,
 	settlePayment,
 	toSettlementInfo,
 	verifyPayment,
@@ -77,6 +78,7 @@ export function createPaymentRequiredResponse(
 export async function processPayment(
 	request: Request,
 	requirements: PaymentRequirementsPayload[],
+	facilitator?: FacilitatorConfig,
 ): Promise<SettlementInfo | null> {
 	const paymentHeader = request.headers.get(HEADERS.PAYMENT_SIGNATURE);
 
@@ -90,7 +92,11 @@ export async function processPayment(
 	const paymentRequirements = requirements[0];
 
 	// Verify
-	const verification = await verifyPayment(paymentPayload, paymentRequirements);
+	const verification = await verifyPayment(
+		paymentPayload,
+		paymentRequirements,
+		facilitator,
+	);
 	if (!verification.isValid) {
 		throw new PaymentError(
 			`Payment verification failed: ${verification.invalidReason ?? "unknown reason"}`,
@@ -99,7 +105,11 @@ export async function processPayment(
 	}
 
 	// Settle
-	const settlement = await settlePayment(paymentPayload, paymentRequirements);
+	const settlement = await settlePayment(
+		paymentPayload,
+		paymentRequirements,
+		facilitator,
+	);
 	if (!settlement.success) {
 		throw new PaymentError(
 			`Payment settlement failed: ${settlement.errorReason ?? "unknown reason"}`,

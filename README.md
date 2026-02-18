@@ -107,6 +107,32 @@ Since no real wallet is signing payments, every request gets a 402 back with the
 - **Multi-chain** — accept payments on Base, Solana, or any supported network
 - **Path rewriting** — your public API shape doesn't need to match upstream
 - **Env var interpolation** — `${API_KEY}` in config, secrets stay in `.env`
+- **Custom facilitator** — point to a self-hosted or alternative facilitator
+
+## Custom Facilitator
+
+By default, tollbooth uses `https://x402.org/facilitator`. You can override this globally or per-route:
+
+```yaml
+# Use a custom facilitator for all routes
+facilitator: https://custom-facilitator.example.com
+
+upstreams:
+  myapi:
+    url: https://api.example.com
+
+routes:
+  "GET /data":
+    upstream: myapi
+    price: "$0.01"
+
+  "POST /special":
+    upstream: myapi
+    price: "$0.05"
+    facilitator: https://other-facilitator.example.com  # per-route override
+```
+
+Route-level `facilitator` takes precedence over the top-level setting. If neither is specified, the default `https://x402.org/facilitator` is used.
 
 ## Dynamic Pricing
 

@@ -110,4 +110,61 @@ describe("tollboothConfigSchema", () => {
 		});
 		expect(result.success).toBe(false);
 	});
+
+	test("accepts top-level facilitator url", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			facilitator: "https://custom-facilitator.example.com",
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.facilitator).toBe(
+				"https://custom-facilitator.example.com",
+			);
+		}
+	});
+
+	test("accepts route-level facilitator url", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					price: "$0.01",
+					facilitator: "https://route-facilitator.example.com",
+				},
+			},
+		});
+		expect(result.success).toBe(true);
+	});
+
+	test("rejects invalid facilitator url at top level", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			facilitator: "not-a-url",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects invalid facilitator url at route level", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					price: "$0.01",
+					facilitator: "not-a-url",
+				},
+			},
+		});
+		expect(result.success).toBe(false);
+	});
+
+	test("facilitator is optional (backwards compatible)", () => {
+		const result = tollboothConfigSchema.safeParse(validConfig);
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.facilitator).toBeUndefined();
+		}
+	});
 });
