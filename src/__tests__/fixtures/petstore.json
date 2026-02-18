@@ -1,0 +1,17 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Petstore JSON",
+		"version": "1.0.0"
+	},
+	"servers": [{ "url": "https://petstore.example.com/v1" }],
+	"paths": {
+		"/pets": {
+			"get": { "summary": "List pets" },
+			"post": { "summary": "Create pet" }
+		},
+		"/pets/{petId}": {
+			"get": { "summary": "Get pet" }
+		}
+	}
+}

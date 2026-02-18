@@ -2,7 +2,7 @@
 
 import { loadConfig } from "./config/loader.js";
 import { createGateway } from "./gateway.js";
-import { runInit } from "./init.js";
+import { runInit, runInitFromOpenAPI } from "./init.js";
 
 const args = process.argv.slice(2);
 const command = args[0] ?? "start";
@@ -28,7 +28,18 @@ switch (command) {
 	}
 
 	case "init": {
-		await runInit();
+		const fromIdx = args.indexOf("--from");
+		if (fromIdx !== -1) {
+			const format = args[fromIdx + 1];
+			const specPath = args[fromIdx + 2];
+			if (format !== "openapi" || !specPath) {
+				console.error("❌ Usage: tollbooth init --from openapi <path>");
+				process.exit(1);
+			}
+			await runInitFromOpenAPI(specPath);
+		} else {
+			await runInit();
+		}
 		break;
 	}
 
@@ -57,6 +68,7 @@ switch (command) {
 
 Usage:
   tollbooth init                     Generate a config file interactively
+  tollbooth init --from openapi <path>  Generate config from an OpenAPI spec
   tollbooth start [--config=path]    Start the gateway
   tollbooth dev [--config=path]      Start in dev mode (with watch)
   tollbooth validate [--config=path] Validate config without starting
