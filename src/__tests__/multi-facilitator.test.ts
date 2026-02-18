@@ -421,9 +421,7 @@ describe("multi-facilitator gateway integration", () => {
 		facilitator2?.stop();
 	});
 
-	const paymentSig = btoa(
-		JSON.stringify({ x402Version: 2, payload: "mock" }),
-	);
+	const paymentSig = btoa(JSON.stringify({ x402Version: 2, payload: "mock" }));
 
 	test("payment succeeds when second facilitator verifies", async () => {
 		upstream = Bun.serve({
