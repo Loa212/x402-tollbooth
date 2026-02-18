@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+const rateLimitSchema = z
+	.object({
+		requests: z.number().int().positive(),
+		window: z
+			.string()
+			.regex(
+				/^\d+[smhd]$/,
+				'Must be a duration like "30s", "5m", "1h", or "1d"',
+			),
+	})
+	.strict();
+
 const payToSplitSchema = z.object({
 	address: z.string().min(1),
 	share: z.number().min(0).max(1),
@@ -44,6 +56,7 @@ const routeConfigSchema = z.object({
 	hooks: routeHooksSchema,
 	metadata: z.record(z.unknown()).optional(),
 	facilitator: z.string().url().optional(),
+	rateLimit: rateLimitSchema.optional(),
 });
 
 const upstreamConfigSchema = z.object({
@@ -69,6 +82,7 @@ export const tollboothConfigSchema = z.object({
 		.object({
 			price: z.string().default("$0.001"),
 			timeout: z.number().positive().default(60),
+			rateLimit: rateLimitSchema.optional(),
 		})
 		.default({}),
 

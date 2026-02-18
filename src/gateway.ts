@@ -11,9 +11,16 @@ import { formatPrice } from "./pricing/parser.js";
 import { resolvePrice } from "./pricing/resolver.js";
 import { bufferRequestBody, routeNeedsBody } from "./proxy/body-buffer.js";
 import { proxyRequest, UpstreamError } from "./proxy/proxy.js";
+import {
+	checkRateLimit,
+	extractIdentity,
+	resolveRateLimit,
+} from "./ratelimit/check.js";
+import { MemoryRateLimitStore } from "./ratelimit/store.js";
 import { rewritePath } from "./router/rewriter.js";
 import { matchRoute } from "./router/router.js";
 import type {
+	RateLimitStore,
 	ResolvedRoute,
 	TollboothConfig,
 	TollboothGateway,
@@ -30,8 +37,12 @@ import {
 /**
  * Create a tollbooth gateway from a validated config.
  */
-export function createGateway(config: TollboothConfig): TollboothGateway {
+export function createGateway(
+	config: TollboothConfig,
+	options?: { rateLimitStore?: RateLimitStore },
+): TollboothGateway {
 	let server: ReturnType<typeof Bun.serve> | null = null;
+	const rateLimitStore = options?.rateLimitStore ?? new MemoryRateLimitStore();
 
 	const discoveryPayload = config.gateway.discovery
 		? JSON.stringify(generateDiscoveryMetadata(config))
@@ -113,6 +124,42 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 		};
 
 		try {
+			// ── Rate limiting ────────────────────────────────────────────────
+			const rateLimit = resolveRateLimit(route.rateLimit, config);
+			if (rateLimit) {
+				const identity = extractIdentity(request);
+				const rlResult = await checkRateLimit(
+					rateLimitStore,
+					identity,
+					routeKey,
+					rateLimit,
+				);
+				if (!rlResult.allowed) {
+					const retryAfter = Math.ceil(rlResult.resetMs / 1000);
+					log.warn("rate_limited", {
+						method: request.method,
+						path: url.pathname,
+						route: routeKey,
+						identity,
+						limit: rlResult.limit,
+						retry_after_s: retryAfter,
+					});
+					return new Response(
+						JSON.stringify({
+							error: "Too many requests",
+							retryAfter: retryAfter,
+						}),
+						{
+							status: 429,
+							headers: {
+								"Content-Type": "application/json",
+								"Retry-After": String(retryAfter),
+							},
+						},
+					);
+				}
+			}
+
 			// ── Hook: onRequest ───────────────────────────────────────────────
 			const onRequestResult = await runOnRequest(
 				{ req: tollboothReq },
@@ -376,6 +423,9 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 		async stop() {
 			server?.stop();
 			server = null;
+			if (rateLimitStore instanceof MemoryRateLimitStore) {
+				rateLimitStore.destroy();
+			}
 		},
 	};
 }

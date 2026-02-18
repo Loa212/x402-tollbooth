@@ -22,9 +22,15 @@ export interface AcceptedPayment {
 	network: string;
 }
 
+export interface RateLimitConfig {
+	requests: number;
+	window: string;
+}
+
 export interface DefaultsConfig {
 	price: string;
 	timeout: number;
+	rateLimit?: RateLimitConfig;
 }
 
 export interface UpstreamConfig {
@@ -46,6 +52,7 @@ export interface RouteConfig {
 	hooks?: RouteHooksConfig;
 	metadata?: Record<string, unknown>;
 	facilitator?: string;
+	rateLimit?: RateLimitConfig;
 }
 
 export interface MatchRule {
@@ -174,6 +181,19 @@ export interface PricingFnInput {
 export type PricingFn = (
 	input: PricingFnInput,
 ) => string | number | Promise<string | number>;
+
+// ── Rate Limiting ────────────────────────────────────────────────────────────
+
+export interface RateLimitResult {
+	allowed: boolean;
+	remaining: number;
+	limit: number;
+	resetMs: number;
+}
+
+export interface RateLimitStore {
+	check(key: string, limit: number, windowMs: number): Promise<RateLimitResult>;
+}
 
 // ── Gateway ──────────────────────────────────────────────────────────────────
 
