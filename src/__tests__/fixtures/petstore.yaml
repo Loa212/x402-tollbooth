@@ -1,0 +1,20 @@
+openapi: "3.0.3"
+info:
+  title: Petstore API
+  version: "1.0.0"
+servers:
+  - url: https://petstore.example.com/v1
+paths:
+  /pets:
+    get:
+      summary: List all pets
+    post:
+      summary: Create a pet
+  /pets/{petId}:
+    get:
+      summary: Get a pet by ID
+    delete:
+      summary: Delete a pet
+  /pets/{petId}/toys/{toyId}:
+    get:
+      summary: Get a specific toy for a pet

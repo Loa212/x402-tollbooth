@@ -1,7 +1,7 @@
-import { existsSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { stringify as toYaml } from "yaml";
+import { parse as parseYaml, stringify as toYaml } from "yaml";
 import { tollboothConfigSchema } from "./config/schema.js";
 
 const rl = createInterface({
@@ -154,6 +154,188 @@ export async function runInit() {
 	console.log(
 		`\n✅ Created tollbooth.config.yaml (${upstreamCount} upstream(s), ${routeCount} route(s))`,
 	);
+	console.log("\n  Next steps:");
+	console.log("    tollbooth validate   Check the config");
+	console.log("    tollbooth start      Start the gateway\n");
+}
+
+// ── OpenAPI helpers ──────────────────────────────────────────────────────────
+
+const HTTP_METHODS = new Set([
+	"get",
+	"put",
+	"post",
+	"delete",
+	"options",
+	"head",
+	"patch",
+	"trace",
+]);
+
+export interface OpenAPIOperation {
+	method: string;
+	path: string;
+	summary?: string;
+}
+
+export function convertPathParams(path: string): string {
+	return path.replace(/\{([^}]+)\}/g, ":$1");
+}
+
+export function extractOperations(
+	spec: Record<string, unknown>,
+): OpenAPIOperation[] {
+	const paths = spec.paths as
+		| Record<string, Record<string, unknown>>
+		| undefined;
+	if (!paths || typeof paths !== "object") return [];
+
+	const ops: OpenAPIOperation[] = [];
+	for (const [path, methods] of Object.entries(paths)) {
+		if (!methods || typeof methods !== "object") continue;
+		for (const [method, operation] of Object.entries(methods)) {
+			if (!HTTP_METHODS.has(method)) continue;
+			const op = operation as Record<string, unknown> | undefined;
+			ops.push({
+				method: method.toUpperCase(),
+				path: convertPathParams(path),
+				summary: typeof op?.summary === "string" ? op.summary : undefined,
+			});
+		}
+	}
+	return ops;
+}
+
+function parseSpecFile(filePath: string): Record<string, unknown> {
+	const abs = resolve(process.cwd(), filePath);
+	if (!existsSync(abs)) {
+		console.error(`❌ File not found: ${filePath}`);
+		process.exit(1);
+	}
+	const raw = readFileSync(abs, "utf-8");
+	const ext = extname(abs).toLowerCase();
+	if (ext === ".json") return JSON.parse(raw);
+	return parseYaml(raw) as Record<string, unknown>;
+}
+
+export async function runInitFromOpenAPI(specPath: string) {
+	const spec = parseSpecFile(specPath);
+
+	// ── Validate OpenAPI version ─────────────────────────────────────────────
+	const version = spec.openapi as string | undefined;
+	if (!version?.startsWith("3.")) {
+		console.error("❌ Only OpenAPI 3.x specs are supported.");
+		process.exit(1);
+	}
+
+	const ops = extractOperations(spec);
+	if (ops.length === 0) {
+		console.error("❌ No operations found in the spec.");
+		process.exit(1);
+	}
+
+	const info = spec.info as { title?: string } | undefined;
+	const title = info?.title ?? specPath;
+	console.log(`\n⛩️  tollbooth init — import from OpenAPI spec`);
+	console.log(`   Found ${ops.length} operation(s) in ${title}\n`);
+
+	for (const op of ops) {
+		const label = `  ${op.method} ${op.path}`;
+		console.log(op.summary ? `${label}  — ${op.summary}` : label);
+	}
+	console.log();
+
+	const configPath = resolve(process.cwd(), "tollbooth.config.yaml");
+
+	// ── Overwrite protection ─────────────────────────────────────────────────
+	if (existsSync(configPath)) {
+		const overwrite = await confirm(
+			"tollbooth.config.yaml already exists. Overwrite?",
+		);
+		if (!overwrite) {
+			console.log("\nAborted.");
+			rl.close();
+			return;
+		}
+		console.log();
+	}
+
+	// ── Upstream ─────────────────────────────────────────────────────────────
+	const servers = spec.servers as Array<{ url?: string }> | undefined;
+	const defaultUrl = servers?.[0]?.url ?? "";
+
+	const upstreamName = await ask("Upstream name", "api");
+	const upstreamUrl = await ask("Upstream base URL", defaultUrl || undefined);
+	if (!upstreamUrl) {
+		console.log("\n  Upstream URL is required.");
+		rl.close();
+		process.exit(1);
+	}
+	console.log();
+
+	// ── Pricing ──────────────────────────────────────────────────────────────
+	const defaultPrice = await ask("Default price per request", "$0.01");
+	console.log();
+
+	// ── Payment ──────────────────────────────────────────────────────────────
+	const network = await ask("Network", "base-sepolia");
+	const asset = await ask("Asset", "USDC");
+	const wallet = await ask("Wallet address");
+
+	if (!wallet) {
+		console.log("\n  Wallet address is required.");
+		rl.close();
+		process.exit(1);
+	}
+
+	rl.close();
+
+	// ── Build routes ─────────────────────────────────────────────────────────
+	const routes: Record<string, { upstream: string; price: string }> = {};
+	for (const op of ops) {
+		routes[`${op.method} ${op.path}`] = {
+			upstream: upstreamName,
+			price: defaultPrice,
+		};
+	}
+
+	// ── Build config ─────────────────────────────────────────────────────────
+	const raw = {
+		gateway: {
+			port: 3000,
+			discovery: true,
+		},
+		wallets: {
+			[network]: wallet,
+		},
+		accepts: [{ asset, network }],
+		defaults: {
+			price: "$0.001",
+			timeout: 60,
+		},
+		upstreams: {
+			[upstreamName]: { url: upstreamUrl },
+		},
+		routes,
+	};
+
+	// ── Validate ─────────────────────────────────────────────────────────────
+	const result = tollboothConfigSchema.safeParse(raw);
+	if (!result.success) {
+		const issues = result.error.issues
+			.map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`)
+			.join("\n");
+		console.error(`\n❌ Generated config is invalid:\n${issues}`);
+		process.exit(1);
+	}
+
+	// ── Write YAML ───────────────────────────────────────────────────────────
+	const header = `# tollbooth.config.yaml — generated by \`tollbooth init --from openapi\`\n# Source: ${title}\n# To use a custom facilitator, add: facilitator: https://your-facilitator.com\n\n`;
+	const yaml = toYaml(raw, { lineWidth: 0 });
+	writeFileSync(configPath, header + yaml, "utf-8");
+
+	const routeCount = Object.keys(routes).length;
+	console.log(`\n✅ Created tollbooth.config.yaml with ${routeCount} route(s)`);
 	console.log("\n  Next steps:");
 	console.log("    tollbooth validate   Check the config");
 	console.log("    tollbooth start      Start the gateway\n");
