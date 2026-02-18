@@ -15,6 +15,7 @@ export interface DiscoveryEndpoint {
 		defaultPrice?: string;
 	};
 	accepts: { asset: string; network: string }[];
+	facilitator?: string;
 	metadata?: Record<string, unknown>;
 }
 
@@ -43,11 +44,15 @@ export function generateDiscoveryMetadata(
 			defaultPrice = (route.price as string) ?? config.defaults.price;
 		}
 
+		// Resolve facilitator: route-level > top-level
+		const facilitator = route.facilitator ?? config.facilitator;
+
 		endpoints.push({
 			method: method.toUpperCase(),
 			path,
 			pricing: { type: pricingType, defaultPrice },
 			accepts: accepts.map((a) => ({ asset: a.asset, network: a.network })),
+			...(facilitator && { facilitator }),
 			...(route.metadata && { metadata: route.metadata }),
 		});
 	}

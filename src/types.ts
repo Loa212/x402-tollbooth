@@ -8,6 +8,7 @@ export interface TollboothConfig {
 	upstreams: Record<string, UpstreamConfig>;
 	routes: Record<string, RouteConfig>;
 	hooks?: GlobalHooksConfig;
+	facilitator?: string;
 }
 
 export interface GatewayConfig {
@@ -44,6 +45,7 @@ export interface RouteConfig {
 	payTo?: string | PayToSplit[];
 	hooks?: RouteHooksConfig;
 	metadata?: Record<string, unknown>;
+	facilitator?: string;
 }
 
 export interface MatchRule {
