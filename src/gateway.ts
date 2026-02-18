@@ -8,7 +8,7 @@ import {
 } from "./hooks/runner.js";
 import { resolvePrice } from "./pricing/resolver.js";
 import { bufferRequestBody, routeNeedsBody } from "./proxy/body-buffer.js";
-import { proxyRequest } from "./proxy/proxy.js";
+import { proxyRequest, UpstreamError } from "./proxy/proxy.js";
 import { rewritePath } from "./router/rewriter.js";
 import { matchRoute } from "./router/router.js";
 import type {
@@ -53,15 +53,23 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 		}
 
 		// Match route
-		const matched = matchRoute(request.method, url.pathname, config);
-		if (!matched) {
-			return new Response(JSON.stringify({ error: "Not found" }), {
+		const result = matchRoute(request.method, url.pathname, config);
+		if (!result.matched) {
+			const requested = `${request.method.toUpperCase()} ${url.pathname}`;
+			const detail: Record<string, unknown> = {
+				error: `Route not found: ${requested}`,
+				checked: result.checked,
+			};
+			if (result.suggestion) {
+				detail.suggestion = `Did you mean ${result.suggestion}?`;
+			}
+			return new Response(JSON.stringify(detail), {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			});
 		}
 
-		const { routeKey, route, upstream, params } = matched;
+		const { routeKey, route, upstream, params } = result;
 
 		// Parse query
 		const query: Record<string, string> = {};
@@ -199,6 +207,7 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				upstreamPath,
 				request,
 				rawBody,
+				route.upstream,
 			);
 
 			// ── Hook: onResponse ─────────────────────────────────────────────
@@ -246,6 +255,13 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 				});
 			}
 
+			if (error instanceof UpstreamError) {
+				return new Response(JSON.stringify({ error: error.message }), {
+					status: 502,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
 			const upstreamPath = route.path
 				? rewritePath(route.path, params, query)
 				: url.pathname;
@@ -287,19 +303,19 @@ export function createGateway(config: TollboothConfig): TollboothGateway {
 		get config() {
 			return config;
 		},
-		async start() {
+		async start(options?: { silent?: boolean }) {
 			server = Bun.serve({
 				port: config.gateway.port,
 				hostname: config.gateway.hostname,
 				fetch: handleRequest,
 			});
-			console.log(
-				`⛩️  tollbooth running on http://localhost:${config.gateway.port}`,
-			);
-			if (discoveryPayload) {
-				console.log(
-					`📡 discovery at http://localhost:${config.gateway.port}/.well-known/x402`,
-				);
+			if (!options?.silent) {
+				console.log(`⛩️  tollbooth running on http://localhost:${server.port}`);
+				if (discoveryPayload) {
+					console.log(
+						`📡 discovery at http://localhost:${server.port}/.well-known/x402`,
+					);
+				}
 			}
 		},
 		async stop() {
