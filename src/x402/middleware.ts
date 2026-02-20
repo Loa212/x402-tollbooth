@@ -1,5 +1,9 @@
 import type { ResolvedPrice } from "../pricing/resolver.js";
-import type { AcceptedPayment, SettlementInfo } from "../types.js";
+import type {
+	AcceptedPayment,
+	PaymentRequirementsPayload,
+	SettlementInfo,
+} from "../types.js";
 import {
 	type FacilitatorConfig,
 	settlePayment,
@@ -12,18 +16,7 @@ import {
 	HEADERS,
 } from "./headers.js";
 
-export interface PaymentRequirementsPayload {
-	scheme: string;
-	network: string;
-	maxAmountRequired: string;
-	resource: string;
-	description: string;
-	payTo: string;
-	maxTimeoutSeconds: number;
-	asset: string;
-	// EIP-712 domain info required by the facilitator to verify the signature
-	extra?: { name: string; version: string };
-}
+export type { PaymentRequirementsPayload } from "../types.js";
 
 // Token metadata keyed by "asset:network".
 // `address` is the on-chain contract address the facilitator needs for verification.

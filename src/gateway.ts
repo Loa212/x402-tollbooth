@@ -20,30 +20,33 @@ import {
 import { MemoryRateLimitStore } from "./ratelimit/store.js";
 import { rewritePath } from "./router/rewriter.js";
 import { matchRoute } from "./router/router.js";
+import {
+	createFacilitatorStrategy,
+	initSettlementStrategy,
+} from "./settlement/loader.js";
 import type {
 	PayToSplit,
+	PaymentRequirementsPayload,
 	RateLimitStore,
 	ResolvedRoute,
 	RouteConfig,
 	SettlementDecision,
 	SettlementInfo,
+	SettlementStrategy,
+	SettlementVerification,
 	TollboothConfig,
 	TollboothGateway,
 	TollboothRequest,
 	UpstreamConfig,
 	UpstreamResponse,
 } from "./types.js";
-import { resolveFacilitatorUrl } from "./x402/facilitator.js";
 import { encodePaymentResponse, HEADERS } from "./x402/headers.js";
 import {
 	buildPaymentRequirements,
 	createPaymentRequiredResponse,
-	executeSettlement,
 	PaymentError,
-	type PaymentRequirementsPayload,
-	processPayment,
-	processVerification,
 } from "./x402/middleware.js";
+import { decodePaymentSignature } from "./x402/headers.js";
 
 interface AfterResponseCtx {
 	request: Request;
@@ -55,7 +58,8 @@ interface AfterResponseCtx {
 	resolvedRoute: ResolvedRoute;
 	rawBody: ArrayBuffer | undefined;
 	requirements: PaymentRequirementsPayload[];
-	facilitators: { url: string }[];
+	strategy: SettlementStrategy;
+	verification: SettlementVerification;
 	price: {
 		amount: bigint;
 		asset: string;
@@ -103,6 +107,9 @@ export function createGateway(
 	const discoveryPayload = config.gateway.discovery
 		? JSON.stringify(generateDiscoveryMetadata(config))
 		: null;
+
+	// Pre-loaded custom strategy (set during start())
+	let customStrategy: SettlementStrategy | null = null;
 
 	async function handleRequest(request: Request): Promise<Response> {
 		const start = performance.now();
@@ -180,7 +187,7 @@ export function createGateway(
 		};
 
 		let resolvedRoute: ResolvedRoute | undefined;
-		const settlementStrategy = route.settlement ?? "before-response";
+		const settlementTiming = route.settlement ?? "before-response";
 
 		try {
 			// ── Rate limiting ────────────────────────────────────────────────
@@ -302,17 +309,32 @@ export function createGateway(
 				accepts,
 			);
 
-			const facilitators = accepts.map((a) => ({
-				url: resolveFacilitatorUrl(
-					a.network,
-					a.asset,
+			// ── Extract payment from request ────────────────────────────────
+			const paymentHeader = request.headers.get(HEADERS.PAYMENT_SIGNATURE);
+			if (!paymentHeader) {
+				return createPaymentRequiredResponse(requirements);
+			}
+			const payment = decodePaymentSignature(paymentHeader);
+
+			// ── Resolve settlement strategy ─────────────────────────────────
+			const strategy =
+				customStrategy ??
+				createFacilitatorStrategy(
+					accepts,
 					route.facilitator,
 					config.facilitator,
-				),
-			}));
+					config.settlement?.url,
+				);
 
-			// ── Branch on settlement strategy ────────────────────────────────
-			if (settlementStrategy === "after-response") {
+			// ── Verify payment ──────────────────────────────────────────────
+			const verification = await strategy.verify(payment, requirements);
+
+			if (verification.payer) {
+				tollboothReq.payer = verification.payer;
+			}
+
+			// ── Branch on settlement timing ─────────────────────────────────
+			if (settlementTiming === "after-response") {
 				return await handleAfterResponse({
 					request,
 					tollboothReq,
@@ -321,7 +343,8 @@ export function createGateway(
 					upstreamPath,
 					rawBody,
 					requirements,
-					facilitators,
+					strategy,
+					verification,
 					price,
 					route,
 					routeKey,
@@ -330,18 +353,8 @@ export function createGateway(
 				});
 			}
 
-			// ── before-response (default) ────────────────────────────────────
-			const paymentResult = await processPayment(
-				request,
-				requirements,
-				facilitators,
-			);
-
-			if (!paymentResult) {
-				return createPaymentRequiredResponse(requirements);
-			}
-
-			const settlement = paymentResult.settlement;
+			// ── before-response (default): settle immediately ───────────────
+			const settlement = await strategy.settle(verification);
 			tollboothReq.payer = settlement.payer;
 
 			log.info("payment_settled", {
@@ -421,8 +434,8 @@ export function createGateway(
 	}
 
 	/**
-	 * Handle the after-response settlement strategy.
-	 * Verify → proxy → conditionally settle based on upstream response.
+	 * Handle the after-response settlement timing.
+	 * Payment already verified → proxy → conditionally settle based on upstream response.
 	 */
 	async function handleAfterResponse(ctx: AfterResponseCtx): Promise<Response> {
 		const {
@@ -431,8 +444,8 @@ export function createGateway(
 			resolvedRoute,
 			upstream,
 			upstreamPath,
-			requirements,
-			facilitators,
+			strategy,
+			verification,
 			price,
 			route,
 			routeKey,
@@ -440,21 +453,6 @@ export function createGateway(
 			start,
 		} = ctx;
 		let rawBody = ctx.rawBody;
-
-		// ── Verify only (no settle yet) ──────────────────────────────────
-		const verification = await processVerification(
-			request,
-			requirements,
-			facilitators,
-		);
-
-		if (!verification) {
-			return createPaymentRequiredResponse(requirements);
-		}
-
-		if (verification.payer) {
-			tollboothReq.payer = verification.payer;
-		}
 
 		// ── Proxy to upstream ────────────────────────────────────────────
 		if (!rawBody && !["GET", "HEAD"].includes(request.method.toUpperCase())) {
@@ -545,9 +543,8 @@ export function createGateway(
 		}
 
 		if (shouldSettle) {
-			// ── Settle ───────────────────────────────────────────────────
-			const paymentResult = await executeSettlement(verification);
-			const settlement = paymentResult.settlement;
+			// ── Settle via strategy ──────────────────────────────────────
+			const settlement = await strategy.settle(verification);
 			tollboothReq.payer = settlement.payer;
 
 			log.info("payment_settled", {
@@ -770,6 +767,9 @@ export function createGateway(
 			return config;
 		},
 		async start(options?: { silent?: boolean }) {
+			// Load custom settlement strategy if configured
+			customStrategy = await initSettlementStrategy(config);
+
 			server = Bun.serve({
 				port: config.gateway.port,
 				hostname: config.gateway.hostname,
