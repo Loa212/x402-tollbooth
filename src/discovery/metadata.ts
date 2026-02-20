@@ -1,3 +1,4 @@
+import { getEffectiveRoutePricing } from "../pricing/config.js";
 import type { TollboothConfig } from "../types.js";
 import { resolveFacilitatorUrl } from "../x402/facilitator.js";
 
@@ -13,6 +14,8 @@ export interface DiscoveryEndpoint {
 	description?: string;
 	pricing: {
 		type: "static" | "dynamic" | "match";
+		model: "request" | "time";
+		duration?: string;
 		defaultPrice?: string;
 	};
 	accepts: { asset: string; network: string; facilitator?: string }[];
@@ -31,18 +34,19 @@ export function generateDiscoveryMetadata(
 
 	for (const [routeKey, route] of Object.entries(config.routes)) {
 		const [method, path] = routeKey.split(" ", 2);
+		const pricing = getEffectiveRoutePricing(route);
 		const accepts = route.accepts ?? config.accepts;
 
 		let pricingType: "static" | "dynamic" | "match" = "static";
 		let defaultPrice: string | undefined;
 
-		if (route.match) {
+		if (pricing.match) {
 			pricingType = "match";
-			defaultPrice = route.fallback ?? config.defaults.price;
-		} else if (route.price && typeof route.price === "object") {
+			defaultPrice = pricing.fallback ?? config.defaults.price;
+		} else if (pricing.price && typeof pricing.price === "object") {
 			pricingType = "dynamic";
 		} else {
-			defaultPrice = (route.price as string) ?? config.defaults.price;
+			defaultPrice = (pricing.price as string) ?? config.defaults.price;
 		}
 
 		// Resolve per-chain facilitator for each accepted payment
@@ -64,7 +68,12 @@ export function generateDiscoveryMetadata(
 		endpoints.push({
 			method: method.toUpperCase(),
 			path,
-			pricing: { type: pricingType, defaultPrice },
+			pricing: {
+				type: pricingType,
+				model: pricing.model,
+				...(pricing.duration ? { duration: pricing.duration } : {}),
+				defaultPrice,
+			},
 			accepts: acceptsWithFacilitator,
 			...(facilitator && { facilitator }),
 			...(route.metadata && { metadata: route.metadata }),

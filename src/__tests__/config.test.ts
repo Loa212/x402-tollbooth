@@ -77,6 +77,56 @@ describe("tollboothConfigSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
+	test("accepts time-based pricing config", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					pricing: {
+						model: "time",
+						duration: "1h",
+						price: "$0.01",
+					},
+				},
+			},
+		});
+		expect(result.success).toBe(true);
+	});
+
+	test("rejects time model without duration", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					pricing: {
+						model: "time",
+						price: "$0.01",
+					},
+				},
+			},
+		});
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects duration on request model", () => {
+		const result = tollboothConfigSchema.safeParse({
+			...validConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					pricing: {
+						model: "request",
+						duration: "30m",
+						price: "$0.01",
+					},
+				},
+			},
+		});
+		expect(result.success).toBe(false);
+	});
+
 	test("rejects empty accepts", () => {
 		const result = tollboothConfigSchema.safeParse({
 			...validConfig,

@@ -4,7 +4,7 @@ import type {
 	RateLimitStore,
 	TollboothConfig,
 } from "../types.js";
-import { extractPayerFromHeader } from "../x402/headers.js";
+import { extractPayerFromPaymentHeader } from "../x402/payer.js";
 import { parseWindow } from "./store.js";
 
 /**
@@ -15,10 +15,9 @@ import { parseWindow } from "./store.js";
  *   2. Client IP from X-Forwarded-For or connection
  */
 export function extractIdentity(request: Request): string {
-	const paymentHeader = request.headers.get("payment-signature");
-	if (paymentHeader) {
-		const payer = extractPayerFromHeader(paymentHeader);
-		if (payer) return `payer:${payer.toLowerCase()}`;
+	const payer = extractPayerFromPaymentHeader(request);
+	if (payer) {
+		return `payer:${payer}`;
 	}
 
 	const forwarded = request.headers.get("x-forwarded-for");

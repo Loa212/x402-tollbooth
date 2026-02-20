@@ -1,3 +1,4 @@
+import { getEffectiveRoutePricing } from "../pricing/config.js";
 import type { RouteConfig } from "../types.js";
 
 /**
@@ -10,9 +11,10 @@ export function routeNeedsBody(route: RouteConfig): boolean {
 	if (route.type === "token-based" || route.type === "openai-compatible")
 		return true;
 
-	if (!route.match) return false;
+	const pricing = getEffectiveRoutePricing(route);
+	if (!pricing.match) return false;
 
-	return route.match.some((rule) =>
+	return pricing.match.some((rule) =>
 		Object.keys(rule.where).some((key) => key.startsWith("body.")),
 	);
 }

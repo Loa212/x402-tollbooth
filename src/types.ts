@@ -48,6 +48,16 @@ export interface UpstreamConfig {
 
 // ── Route Types ──────────────────────────────────────────────────────────────
 
+export type PricingModel = "request" | "time";
+
+export interface RoutePricingConfig {
+	model?: PricingModel;
+	duration?: string;
+	price?: string | PricingFnRef;
+	match?: MatchRule[];
+	fallback?: string;
+}
+
 export interface RouteConfig {
 	upstream: string;
 	type?: "token-based" | "openai-compatible";
@@ -55,6 +65,7 @@ export interface RouteConfig {
 	price?: string | PricingFnRef;
 	match?: MatchRule[];
 	fallback?: string;
+	pricing?: RoutePricingConfig;
 	accepts?: AcceptedPayment[];
 	payTo?: string | PayToSplit[];
 	hooks?: RouteHooksConfig;
@@ -268,6 +279,14 @@ export interface VerificationCacheEntry {
 export interface VerificationCacheStore {
 	get(key: string): Promise<VerificationCacheEntry | undefined>;
 	set(key: string, entry: VerificationCacheEntry, ttlMs: number): Promise<void>;
+}
+
+// ── Time-Based Pricing Sessions ─────────────────────────────────────────────
+
+export interface TimeSessionStore {
+	get(key: string): Promise<number | undefined>;
+	set(key: string, expiresAt: number): Promise<void>;
+	close(): void;
 }
 
 // ── Gateway ──────────────────────────────────────────────────────────────────

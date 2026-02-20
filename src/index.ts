@@ -21,6 +21,7 @@ export type {
 	PriceResolvedHook,
 	PricingFn,
 	PricingFnInput,
+	PricingModel,
 	// Hooks
 	RequestHook,
 	RequestHookContext,
@@ -28,6 +29,7 @@ export type {
 	ResponseHookContext,
 	ResponseHookResult,
 	RouteConfig,
+	RoutePricingConfig,
 	SettledHook,
 	SettledHookContext,
 	SettlementDecision,
@@ -37,6 +39,7 @@ export type {
 	SettlementStrategy,
 	SettlementStrategyConfig,
 	SettlementVerification,
+	TimeSessionStore,
 	TollboothConfig,
 	TollboothError,
 	TollboothGateway,

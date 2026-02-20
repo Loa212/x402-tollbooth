@@ -5,6 +5,7 @@ import type {
 	RouteConfig,
 	TollboothConfig,
 } from "../types.js";
+import { getEffectiveRoutePricing } from "./config.js";
 import { parsePrice } from "./parser.js";
 
 export interface ResolvedPrice {
@@ -36,6 +37,7 @@ export async function resolvePrice(
 	input: ResolveInput,
 ): Promise<ResolvedPrice> {
 	const { route, config } = input;
+	const pricing = getEffectiveRoutePricing(route);
 	const accepts = route.accepts ?? config.accepts;
 	const primaryAccept = accepts[0];
 
@@ -46,8 +48,8 @@ export async function resolvePrice(
 	const defaultPayTo = resolveDefaultPayTo(config, primaryAccept.network);
 
 	// 1. Try match rules
-	if (route.match) {
-		const matched = evaluateMatchers(route.match, {
+	if (pricing.match) {
+		const matched = evaluateMatchers(pricing.match, {
 			body: input.body,
 			query: input.query,
 			headers: input.headers,
@@ -65,8 +67,8 @@ export async function resolvePrice(
 	}
 
 	// 2. Try route.price
-	if (route.price) {
-		const priceStr = await resolvePriceValue(route.price, input);
+	if (pricing.price) {
+		const priceStr = await resolvePriceValue(pricing.price, input);
 		return {
 			amount: parsePrice(priceStr, primaryAccept.asset),
 			asset: primaryAccept.asset,
@@ -76,9 +78,9 @@ export async function resolvePrice(
 	}
 
 	// 3. Try fallback
-	if (route.fallback) {
+	if (pricing.fallback) {
 		return {
-			amount: parsePrice(route.fallback, primaryAccept.asset),
+			amount: parsePrice(pricing.fallback, primaryAccept.asset),
 			asset: primaryAccept.asset,
 			network: primaryAccept.network,
 			payTo: route.payTo ?? defaultPayTo,

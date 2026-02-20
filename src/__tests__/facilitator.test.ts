@@ -60,4 +60,24 @@ describe("facilitator in discovery metadata", () => {
 		expect(testEndpoint?.facilitator).toBe("https://route.example.com");
 		expect(otherEndpoint?.facilitator).toBe("https://global.example.com");
 	});
+
+	test("discovery includes pricing model and duration for time routes", () => {
+		const config: TollboothConfig = {
+			...baseConfig,
+			routes: {
+				"GET /test": {
+					upstream: "api",
+					pricing: {
+						model: "time",
+						duration: "1h",
+						price: "$0.01",
+					},
+				},
+			},
+		};
+
+		const metadata = generateDiscoveryMetadata(config);
+		expect(metadata.endpoints[0].pricing.model).toBe("time");
+		expect(metadata.endpoints[0].pricing.duration).toBe("1h");
+	});
 });

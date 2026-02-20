@@ -5,7 +5,7 @@
 
 Turn any API into a paid [x402](https://x402.org) API. One YAML config, zero code.
 
-Tollbooth is an API gateway that sits in front of your upstream APIs and charges callers per-request using the x402 payment protocol. No API keys, no subscriptions — just instant USDC micropayments.
+Tollbooth is an API gateway that sits in front of your upstream APIs and charges callers using the x402 payment protocol (per-request or time-window access). No API keys, no subscriptions — just instant USDC micropayments.
 
 ## Quickstart
 
@@ -272,6 +272,7 @@ The x402 `exact` scheme uses EIP-3009 `transferWithAuthorization` — a signed p
 - **YAML-first config** — define upstreams, routes, and pricing without code
 - **Token-based mode** — auto-detect model from request body, built-in pricing table
 - **Dynamic pricing** — match on body fields, query params, headers with glob patterns
+- **Time-based access windows** — pay once, access a route until expiry
 - **Multiple upstreams** — proxy to different APIs from one gateway
 - **Custom pricing functions** — `fn:` escape hatch for complex pricing logic
 - **Lifecycle hooks** — `onRequest`, `onPriceResolved`, `onSettled`, `onResponse`, `onError`
@@ -452,6 +453,29 @@ export default: PricingFn = ({ body }) => {
   return rate * Math.ceil(maxTokens / 1000);
 };
 ```
+
+## Time-Based Pricing
+
+For pay-once access windows, set `pricing.model: time` and `pricing.duration`.
+After a successful payment, that payer can call the same route again without another payment until the window expires.
+
+```yaml
+routes:
+  "GET /feed/realtime":
+    upstream: datafeed
+    pricing:
+      model: time
+      price: "$0.10"
+      duration: 1h
+
+  "POST /v1/chat":
+    upstream: llm
+    pricing:
+      model: request # default behavior
+      price: "$0.02"
+```
+
+Supported durations: `s`, `m`, `h`, `d` (for example `30m`, `1h`, `24h`).
 
 ## Multiple Upstreams
 
