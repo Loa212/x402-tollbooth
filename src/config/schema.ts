@@ -12,6 +12,17 @@ const rateLimitSchema = z
 	})
 	.strict();
 
+const verificationCacheSchema = z
+	.object({
+		ttl: z
+			.string()
+			.regex(
+				/^\d+[smhd]$/,
+				'Must be a duration like "30s", "5m", "1h", or "1d"',
+			),
+	})
+	.strict();
+
 const payToSplitSchema = z.object({
 	address: z.string().min(1),
 	share: z.number().min(0).max(1),
@@ -65,6 +76,7 @@ const routeConfigSchema = z.object({
 	metadata: z.record(z.unknown()).optional(),
 	facilitator: facilitatorSchema.optional(),
 	rateLimit: rateLimitSchema.optional(),
+	verificationCache: verificationCacheSchema.optional(),
 	models: z.record(z.string().min(1)).optional(),
 	settlement: z.enum(["before-response", "after-response"]).optional(),
 });
@@ -93,6 +105,7 @@ export const tollboothConfigSchema = z.object({
 			price: z.string().default("$0.001"),
 			timeout: z.number().positive().default(60),
 			rateLimit: rateLimitSchema.optional(),
+			verificationCache: verificationCacheSchema.optional(),
 		})
 		.default({}),
 
