@@ -7,7 +7,8 @@ import type { RouteConfig } from "../types.js";
  * - The route is type: token-based (needs body to extract model)
  */
 export function routeNeedsBody(route: RouteConfig): boolean {
-	if (route.type === "token-based" || route.type === "openai-compatible") return true;
+	if (route.type === "token-based" || route.type === "openai-compatible")
+		return true;
 
 	if (!route.match) return false;
 

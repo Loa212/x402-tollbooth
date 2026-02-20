@@ -160,9 +160,9 @@ describe("DEFAULT_MODEL_PRICES", () => {
 
 describe("routeNeedsBody for token-based", () => {
 	test("returns true for token-based routes", () => {
-		expect(
-			routeNeedsBody({ upstream: "openai", type: "token-based" }),
-		).toBe(true);
+		expect(routeNeedsBody({ upstream: "openai", type: "token-based" })).toBe(
+			true,
+		);
 	});
 
 	test("returns true for openai-compatible routes (deprecated alias)", () => {
