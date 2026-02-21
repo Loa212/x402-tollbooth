@@ -40,6 +40,7 @@ import { resolveFacilitatorUrl } from "./x402/facilitator.js";
 import {
 	decodePaymentSignature,
 	encodePaymentResponse,
+	extractPayerFromHeader,
 	HEADERS,
 } from "./x402/headers.js";
 import {
@@ -861,7 +862,7 @@ export function createGateway(
 				const facilitator = facilitators[idx] ?? facilitators[0];
 				log.info("verification_cache_hit", { route: cacheKey });
 				return {
-					payer: extractPayerAddress(paymentHeader),
+					payer: extractPayerFromHeader(paymentHeader),
 					paymentPayload,
 					requirement: requirements[idx] ?? requirements[0],
 					facilitator,
@@ -928,33 +929,3 @@ function resolveVerificationCache(
 	return routeCache ?? config.defaults.verificationCache;
 }
 
-/**
- * Extract the payer wallet address from a base64-encoded payment-signature header.
- * Returns undefined if the header cannot be parsed or doesn't contain a payer.
- */
-function extractPayerAddress(paymentHeader: string): string | undefined {
-	try {
-		const payload = JSON.parse(atob(paymentHeader)) as Record<string, unknown>;
-		return (
-			getNestedString(payload, "payload", "authorization", "from") ??
-			getNestedString(payload, "from") ??
-			getNestedString(payload, "payer")
-		);
-	} catch {
-		return undefined;
-	}
-}
-
-function getNestedString(
-	obj: Record<string, unknown>,
-	...keys: string[]
-): string | undefined {
-	let current: unknown = obj;
-	for (const key of keys) {
-		if (current == null || typeof current !== "object") return undefined;
-		current = (current as Record<string, unknown>)[key];
-	}
-	return typeof current === "string" && current.length > 0
-		? current
-		: undefined;
-}
