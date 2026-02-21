@@ -1,14 +1,13 @@
 import { z } from "zod";
 
+const durationSchema = z
+	.string()
+	.regex(/^\d+[smhd]$/, 'Must be a duration like "30s", "5m", "1h", or "1d"');
+
 const rateLimitSchema = z
 	.object({
 		requests: z.number().int().positive(),
-		window: z
-			.string()
-			.regex(
-				/^\d+[smhd]$/,
-				'Must be a duration like "30s", "5m", "1h", or "1d"',
-			),
+		window: durationSchema,
 	})
 	.strict();
 
@@ -44,6 +43,33 @@ const matchRuleSchema = z.object({
 	price: z.string().min(1),
 	payTo: payToSchema.optional(),
 });
+
+const routePricingSchema = z
+	.object({
+		model: z.enum(["request", "time"]).optional(),
+		duration: durationSchema.optional(),
+		price: z.union([z.string().min(1), pricingFnRefSchema]).optional(),
+		match: z.array(matchRuleSchema).optional(),
+		fallback: z.string().optional(),
+	})
+	.strict()
+	.superRefine((pricing, ctx) => {
+		if (pricing.model === "time" && !pricing.duration) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["duration"],
+				message: 'Required when pricing.model is "time"',
+			});
+		}
+
+		if (pricing.model !== "time" && pricing.duration) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["duration"],
+				message: 'Only allowed when pricing.model is "time"',
+			});
+		}
+	});
 
 const routeHooksSchema = z
 	.object({
@@ -82,6 +108,7 @@ const routeConfigSchema = z.object({
 	price: z.union([z.string().min(1), pricingFnRefSchema]).optional(),
 	match: z.array(matchRuleSchema).optional(),
 	fallback: z.string().optional(),
+	pricing: routePricingSchema.optional(),
 	accepts: z.array(acceptedPaymentSchema).optional(),
 	payTo: payToSchema.optional(),
 	hooks: routeHooksSchema,

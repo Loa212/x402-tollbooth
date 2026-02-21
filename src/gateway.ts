@@ -8,6 +8,7 @@ import {
 } from "./hooks/runner.js";
 import { log } from "./logger.js";
 import { extractModel, resolveOpenAIPrice } from "./openai/handler.js";
+import { getEffectiveRoutePricing } from "./pricing/config.js";
 import { formatPrice } from "./pricing/parser.js";
 import { resolvePrice } from "./pricing/resolver.js";
 import { bufferRequestBody, routeNeedsBody } from "./proxy/body-buffer.js";
@@ -20,6 +21,11 @@ import {
 import { MemoryRateLimitStore, parseWindow } from "./ratelimit/store.js";
 import { rewritePath } from "./router/rewriter.js";
 import { matchRoute } from "./router/router.js";
+import {
+	buildSessionKey,
+	MemoryTimeSessionStore,
+	parseDuration,
+} from "./session/store.js";
 import { FacilitatorSettlement } from "./settlement/facilitator.js";
 import {
 	createFacilitatorStrategy,
@@ -35,6 +41,7 @@ import type {
 	SettlementInfo,
 	SettlementStrategy,
 	SettlementVerification,
+	TimeSessionStore,
 	TollboothConfig,
 	TollboothGateway,
 	TollboothRequest,
@@ -55,6 +62,7 @@ import {
 	createPaymentRequiredResponse,
 	PaymentError,
 } from "./x402/middleware.js";
+import { extractPayerFromPaymentHeader } from "./x402/payer.js";
 
 interface AfterResponseCtx {
 	request: Request;
@@ -74,6 +82,7 @@ interface AfterResponseCtx {
 		network: string;
 		payTo: string | PayToSplit[];
 	};
+	timeSessionDurationMs?: number;
 	url: URL;
 	start: number;
 }
@@ -110,12 +119,15 @@ export function createGateway(
 	options?: {
 		rateLimitStore?: RateLimitStore;
 		verificationCacheStore?: VerificationCacheStore;
+		timeSessionStore?: TimeSessionStore;
 	},
 ): TollboothGateway {
 	let server: ReturnType<typeof Bun.serve> | null = null;
 	const rateLimitStore = options?.rateLimitStore ?? new MemoryRateLimitStore();
 	const verificationCacheStore =
 		options?.verificationCacheStore ?? new MemoryVerificationCacheStore();
+	const timeSessionStore =
+		options?.timeSessionStore ?? new MemoryTimeSessionStore();
 
 	const discoveryPayload = config.gateway.discovery
 		? JSON.stringify(generateDiscoveryMetadata(config))
@@ -314,6 +326,19 @@ export function createGateway(
 				});
 			}
 
+			const routePricing = getEffectiveRoutePricing(route);
+			const timeDuration =
+				routePricing.model === "time" ? routePricing.duration : undefined;
+			if (routePricing.model === "time" && !timeDuration) {
+				throw new Error(
+					`Route "${routeKey}" requires pricing.duration when pricing.model is "time"`,
+				);
+			}
+
+			const timeSessionDurationMs = timeDuration
+				? parseDuration(timeDuration)
+				: undefined;
+
 			// ── x402 payment flow ────────────────────────────────────────────
 			const accepts = route.accepts ?? config.accepts;
 			const requirements = buildPaymentRequirements(
@@ -326,10 +351,12 @@ export function createGateway(
 
 			// ── Extract payment from request ────────────────────────────────
 			const paymentHeader = request.headers.get(HEADERS.PAYMENT_SIGNATURE);
-			if (!paymentHeader) {
+			if (!paymentHeader && timeSessionDurationMs == null) {
 				return createPaymentRequiredResponse(requirements);
 			}
-			const payment = decodePaymentSignature(paymentHeader);
+			const payment = paymentHeader
+				? decodePaymentSignature(paymentHeader)
+				: null;
 
 			// ── Resolve settlement strategy ─────────────────────────────────
 			const strategy =
@@ -340,6 +367,70 @@ export function createGateway(
 					config.facilitator,
 					config.settlement?.url,
 				);
+
+			// ── Time-based pricing: skip settlement when session is still active ──
+			if (timeSessionDurationMs != null && payment) {
+				const claimedPayer = extractPayerFromPaymentHeader(request);
+				if (claimedPayer) {
+					const sessionKey = buildSessionKey(routeKey, claimedPayer);
+					const expiresAt = await timeSessionStore.get(sessionKey);
+					if (expiresAt != null) {
+						// Session exists — verify the signature is authentic before
+						// granting access (prevents forged payment-signature headers).
+						const verification = await strategy.verify(payment, requirements);
+
+						tollboothReq.payer = verification.payer ?? claimedPayer;
+
+						log.debug("time_session_active", {
+							routeKey,
+							payer: tollboothReq.payer,
+						});
+
+						if (
+							!rawBody &&
+							!["GET", "HEAD"].includes(request.method.toUpperCase())
+						) {
+							rawBody = await request.arrayBuffer();
+						}
+
+						const upstreamResponse = await proxyRequest(
+							upstream,
+							upstreamPath,
+							request,
+							rawBody,
+							route.upstream,
+						);
+
+						const hookResult = await runOnResponse(
+							{
+								req: tollboothReq,
+								route: resolvedRoute,
+								response: upstreamResponse,
+							},
+							route.hooks,
+							config.hooks,
+						);
+
+						const finalResponse = isUpstreamResponse(hookResult)
+							? hookResult
+							: upstreamResponse;
+
+						return buildFinalResponse({
+							response: finalResponse,
+							price,
+							request,
+							url,
+							routeKey,
+							start,
+						});
+					}
+				}
+			}
+
+			// No payment header → require payment
+			if (!paymentHeader || !payment) {
+				return createPaymentRequiredResponse(requirements);
+			}
 
 			// ── Verification cache config ────────────────────────────────────
 			const vcConfig = resolveVerificationCache(
@@ -378,6 +469,7 @@ export function createGateway(
 					strategy,
 					verification,
 					price,
+					timeSessionDurationMs,
 					route,
 					routeKey,
 					url,
@@ -407,6 +499,14 @@ export function createGateway(
 				return new Response(
 					onSettledResult.body ?? "Rejected after settlement",
 					{ status: onSettledResult.status ?? 403 },
+				);
+			}
+
+			if (timeSessionDurationMs != null) {
+				await grantTimeSession(
+					routeKey,
+					settlement.payer,
+					timeSessionDurationMs,
 				);
 			}
 
@@ -479,6 +579,7 @@ export function createGateway(
 			strategy,
 			verification,
 			price,
+			timeSessionDurationMs,
 			route,
 			routeKey,
 			url,
@@ -600,6 +701,14 @@ export function createGateway(
 				);
 			}
 
+			if (timeSessionDurationMs != null) {
+				await grantTimeSession(
+					routeKey,
+					settlement.payer,
+					timeSessionDurationMs,
+				);
+			}
+
 			return buildFinalResponse({
 				response: finalResponse,
 				settlement,
@@ -644,6 +753,15 @@ export function createGateway(
 			routeKey,
 			start,
 		});
+	}
+
+	async function grantTimeSession(
+		routeKey: string,
+		payer: string,
+		durationMs: number,
+	): Promise<void> {
+		const sessionKey = buildSessionKey(routeKey, payer);
+		await timeSessionStore.set(sessionKey, Date.now() + durationMs);
 	}
 
 	/**
@@ -828,6 +946,7 @@ export function createGateway(
 			if (verificationCacheStore instanceof MemoryVerificationCacheStore) {
 				verificationCacheStore.destroy();
 			}
+			timeSessionStore.close();
 		},
 	};
 

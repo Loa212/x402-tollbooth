@@ -107,6 +107,17 @@ describe("resolveOpenAIPrice", () => {
 		expect(result.amount).toBe(5000n); // $0.005
 	});
 
+	test("falls back to pricing.price for unknown model", () => {
+		const route: RouteConfig = {
+			...baseRoute,
+			pricing: {
+				price: "$0.007",
+			},
+		};
+		const result = resolveOpenAIPrice("unknown-model-xyz", route, baseConfig);
+		expect(result.amount).toBe(7000n); // $0.007
+	});
+
 	test("falls back to route.fallback for unknown model", () => {
 		const route: RouteConfig = {
 			...baseRoute,
@@ -173,6 +184,17 @@ describe("routeNeedsBody for token-based", () => {
 
 	test("returns false for standard routes without body match rules", () => {
 		expect(routeNeedsBody({ upstream: "api", price: "$0.01" })).toBe(false);
+	});
+
+	test("returns true for routes with pricing.match on body fields", () => {
+		expect(
+			routeNeedsBody({
+				upstream: "api",
+				pricing: {
+					match: [{ where: { "body.model": "gpt-4o" }, price: "$0.01" }],
+				},
+			}),
+		).toBe(true);
 	});
 });
 

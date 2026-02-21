@@ -1,4 +1,5 @@
 import { log } from "../logger.js";
+import { getEffectiveRoutePricing } from "../pricing/config.js";
 import { DEFAULT_MODEL_PRICES } from "../pricing/models.js";
 import { parsePrice } from "../pricing/parser.js";
 import type { PayToSplit, RouteConfig, TollboothConfig } from "../types.js";
@@ -42,6 +43,7 @@ export function resolveOpenAIPrice(
 	route: RouteConfig,
 	config: TollboothConfig,
 ): OpenAIPriceResult {
+	const pricing = getEffectiveRoutePricing(route);
 	const accepts = route.accepts ?? config.accepts;
 	const primaryAccept = accepts[0];
 
@@ -86,8 +88,8 @@ export function resolveOpenAIPrice(
 
 	// 3. Fall back to standard pricing chain
 	const fallbackPrice =
-		(typeof route.price === "string" ? route.price : undefined) ??
-		route.fallback ??
+		(typeof pricing.price === "string" ? pricing.price : undefined) ??
+		pricing.fallback ??
 		config.defaults.price;
 
 	log.debug("openai_price_resolved", {
