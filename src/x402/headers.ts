@@ -48,10 +48,7 @@ export function extractPayerFromHeader(
 	paymentHeader: string,
 ): string | undefined {
 	try {
-		const payload = JSON.parse(atob(paymentHeader)) as Record<
-			string,
-			unknown
-		>;
+		const payload = JSON.parse(atob(paymentHeader)) as Record<string, unknown>;
 		return (
 			getNestedString(payload, "payload", "authorization", "from") ??
 			getNestedString(payload, "from") ??

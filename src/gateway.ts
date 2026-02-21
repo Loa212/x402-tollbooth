@@ -938,4 +938,3 @@ function resolveVerificationCache(
 ): VerificationCacheConfig | undefined {
 	return routeCache ?? config.defaults.verificationCache;
 }
-
