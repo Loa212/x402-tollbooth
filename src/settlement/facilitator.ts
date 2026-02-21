@@ -79,8 +79,14 @@ export class FacilitatorSettlement implements SettlementStrategy {
 	}
 
 	async settle(verification: SettlementVerification): Promise<SettlementInfo> {
+		if (!isFacilitatorVerification(verification)) {
+			throw new PaymentError(
+				"settle() received a verification not produced by FacilitatorSettlement.verify()",
+				500,
+			);
+		}
 		const { paymentPayload, requirement, facilitator, facilitatorUrl } =
-			verification as FacilitatorVerification;
+			verification;
 
 		let settlement: Awaited<ReturnType<typeof settlePayment>>;
 		try {
@@ -108,4 +114,15 @@ export class FacilitatorSettlement implements SettlementStrategy {
 		info.amount = requirement.maxAmountRequired;
 		return info;
 	}
+}
+
+function isFacilitatorVerification(
+	v: SettlementVerification,
+): v is FacilitatorVerification {
+	return (
+		"paymentPayload" in v &&
+		"requirement" in v &&
+		"facilitator" in v &&
+		"facilitatorUrl" in v
+	);
 }
