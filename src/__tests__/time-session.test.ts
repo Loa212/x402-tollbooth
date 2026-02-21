@@ -32,7 +32,7 @@ describe("MemoryTimeSessionStore", () => {
 	});
 
 	afterEach(() => {
-		store.destroy();
+		store.close();
 	});
 
 	test("returns undefined for unknown keys", async () => {

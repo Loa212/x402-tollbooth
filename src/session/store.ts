@@ -1,5 +1,7 @@
 import type { TimeSessionStore } from "../types.js";
 
+const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
+
 /**
  * In-memory store for time-based access sessions.
  * Keys are route+payer identifiers and values are UNIX expiry timestamps in ms.
@@ -8,8 +10,15 @@ export class MemoryTimeSessionStore implements TimeSessionStore {
 	private sessions = new Map<string, number>();
 	private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
-	constructor() {
-		this.sweepTimer = setInterval(() => this.sweep(), 60_000);
+	/**
+	 * @param sweepIntervalMs How often to purge expired sessions (ms). Must be
+	 *   a positive integer. Defaults to 60 000 ms (1 minute).
+	 */
+	constructor(sweepIntervalMs = DEFAULT_SWEEP_INTERVAL_MS) {
+		if (sweepIntervalMs <= 0) {
+			sweepIntervalMs = DEFAULT_SWEEP_INTERVAL_MS;
+		}
+		this.sweepTimer = setInterval(() => this.sweep(), sweepIntervalMs);
 		if (this.sweepTimer && "unref" in this.sweepTimer) {
 			this.sweepTimer.unref();
 		}
@@ -40,7 +49,7 @@ export class MemoryTimeSessionStore implements TimeSessionStore {
 		}
 	}
 
-	destroy(): void {
+	close(): void {
 		if (this.sweepTimer) {
 			clearInterval(this.sweepTimer);
 			this.sweepTimer = null;
@@ -48,6 +57,16 @@ export class MemoryTimeSessionStore implements TimeSessionStore {
 	}
 }
 
+/**
+ * Build a session store key that uniquely identifies a payer's session for a
+ * given route.
+ *
+ * Format: `<routeKey>:<payer>` where `<payer>` is lowercased.
+ *
+ * Example: `"api/chat:0xabc123"` — this is the contract between the middleware
+ * and any `TimeSessionStore` implementation. Both sides must produce identical
+ * keys for session lookup to work correctly.
+ */
 export function buildSessionKey(routeKey: string, payer: string): string {
 	return `${routeKey}:${payer.toLowerCase()}`;
 }
