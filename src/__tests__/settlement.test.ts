@@ -175,6 +175,105 @@ describe("FacilitatorSettlement", () => {
 		expect(settlement.amount).toBe("10000");
 	});
 
+	test("verify iterates requirements and succeeds on second match", async () => {
+		// First facilitator rejects, second accepts
+		const badFacilitator = mockFacilitator({
+			verify: () =>
+				Response.json({ isValid: false, invalidReason: "wrong network" }),
+			settle: () => Response.json({ success: true }),
+		});
+		const goodFacilitator = mockFacilitator({
+			verify: () => Response.json({ isValid: true, payer: "0xsecond" }),
+			settle: () =>
+				Response.json({
+					success: true,
+					payer: "0xsecond",
+					transaction: "0xtx2",
+					network: "base",
+				}),
+		});
+
+		const strategy = new FacilitatorSettlement([
+			{ url: `http://localhost:${badFacilitator.port}` },
+			{ url: `http://localhost:${goodFacilitator.port}` },
+		]);
+
+		const requirements: PaymentRequirementsPayload[] = [
+			{
+				scheme: "exact",
+				network: "base-sepolia",
+				maxAmountRequired: "10000",
+				resource: "/test",
+				description: "GET /test",
+				payTo: "0xpayto",
+				maxTimeoutSeconds: 60,
+				asset: "0xtoken_a",
+				extra: { name: "USDC", version: "2" },
+			},
+			{
+				scheme: "exact",
+				network: "base",
+				maxAmountRequired: "20000",
+				resource: "/test",
+				description: "GET /test",
+				payTo: "0xpayto",
+				maxTimeoutSeconds: 60,
+				asset: "0xtoken_b",
+				extra: { name: "USD Coin", version: "2" },
+			},
+		];
+
+		const verification = await strategy.verify(
+			{ x402Version: 2, payload: "mock" },
+			requirements,
+		);
+		expect(verification.payer).toBe("0xsecond");
+
+		badFacilitator.stop();
+		goodFacilitator.stop();
+	});
+
+	test("verify throws last error when all requirements fail", async () => {
+		facilitator = mockFacilitator({
+			verify: () =>
+				Response.json({ isValid: false, invalidReason: "always fails" }),
+			settle: () => Response.json({ success: true }),
+		});
+
+		const strategy = new FacilitatorSettlement([
+			{ url: `http://localhost:${facilitator.port}` },
+		]);
+
+		const requirements: PaymentRequirementsPayload[] = [
+			{
+				scheme: "exact",
+				network: "base-sepolia",
+				maxAmountRequired: "10000",
+				resource: "/test",
+				description: "GET /test",
+				payTo: "0xpayto",
+				maxTimeoutSeconds: 60,
+				asset: "0xtoken_a",
+				extra: { name: "USDC", version: "2" },
+			},
+			{
+				scheme: "exact",
+				network: "base",
+				maxAmountRequired: "20000",
+				resource: "/test",
+				description: "GET /test",
+				payTo: "0xpayto",
+				maxTimeoutSeconds: 60,
+				asset: "0xtoken_b",
+				extra: { name: "USD Coin", version: "2" },
+			},
+		];
+
+		await expect(
+			strategy.verify({ x402Version: 2, payload: "mock" }, requirements),
+		).rejects.toThrow(PaymentError);
+	});
+
 	test("settle throws PaymentError on failure", async () => {
 		facilitator = mockFacilitator({
 			verify: () => Response.json({ isValid: true, payer: "0xabc" }),
