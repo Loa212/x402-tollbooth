@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createGateway } from "../gateway.js";
 import { FacilitatorSettlement } from "../settlement/facilitator.js";
-import { createFacilitatorStrategy } from "../settlement/loader.js";
+import {
+	createFacilitatorStrategy,
+	loadCustomStrategy,
+} from "../settlement/loader.js";
 import type {
 	PaymentRequirementsPayload,
 	TollboothConfig,
@@ -335,6 +338,30 @@ describe("createFacilitatorStrategy", () => {
 			"https://new.example.com",
 		);
 		expect(strategy).toBeInstanceOf(FacilitatorSettlement);
+	});
+});
+
+// ── loadCustomStrategy error paths ──────────────────────────────────────────
+
+describe("loadCustomStrategy", () => {
+	test("throws on non-existent module", async () => {
+		await expect(
+			loadCustomStrategy("./does-not-exist-xyz.ts"),
+		).rejects.toThrow();
+	});
+
+	test("throws when module exports no verify/settle", async () => {
+		const badPath = `${import.meta.dir}/_test_bad_strategy.ts`;
+		await Bun.write(badPath, `export default { notAStrategy: true };`);
+
+		try {
+			await expect(loadCustomStrategy(badPath)).rejects.toThrow(
+				/must export an object with verify\(\) and settle\(\) methods/,
+			);
+		} finally {
+			const fs = await import("node:fs");
+			if (fs.existsSync(badPath)) fs.unlinkSync(badPath);
+		}
 	});
 });
 
