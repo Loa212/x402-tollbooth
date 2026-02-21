@@ -839,6 +839,9 @@ export function createGateway(
 	 * On cache hit, skip the facilitator /verify call and build a VerificationResult
 	 * from the cached requirement index + current request's payment payload.
 	 * On cache miss, verify normally and cache the result.
+	 *
+	 * Note: on cache hit the facilitator /verify call is skipped but /settle still
+	 * runs per-request, so invalid payments will fail at settlement time.
 	 */
 	async function cachedVerification(
 		request: Request,
@@ -852,19 +855,18 @@ export function createGateway(
 			const cached = await verificationCacheStore.get(cacheKey);
 			if (cached) {
 				const paymentHeader = request.headers.get(HEADERS.PAYMENT_SIGNATURE);
-				if (paymentHeader) {
-					const paymentPayload = decodePaymentSignature(paymentHeader);
-					const idx = cached.requirementIndex;
-					const facilitator = facilitators[idx] ?? facilitators[0];
-					log.info("verification_cache_hit", { route: cacheKey });
-					return {
-						payer: extractPayerAddress(paymentHeader),
-						paymentPayload,
-						requirement: requirements[idx] ?? requirements[0],
-						facilitator,
-						facilitatorUrl: facilitator.url ?? "https://x402.org/facilitator",
-					};
-				}
+				if (!paymentHeader) return null;
+				const paymentPayload = decodePaymentSignature(paymentHeader);
+				const idx = cached.requirementIndex;
+				const facilitator = facilitators[idx] ?? facilitators[0];
+				log.info("verification_cache_hit", { route: cacheKey });
+				return {
+					payer: extractPayerAddress(paymentHeader),
+					paymentPayload,
+					requirement: requirements[idx] ?? requirements[0],
+					facilitator,
+					facilitatorUrl: facilitator.url ?? "https://x402.org/facilitator",
+				};
 			}
 		}
 
