@@ -17,7 +17,7 @@ import {
 	extractIdentity,
 	resolveRateLimit,
 } from "./ratelimit/check.js";
-import { MemoryRateLimitStore } from "./ratelimit/store.js";
+import { MemoryRateLimitStore, parseWindow } from "./ratelimit/store.js";
 import { rewritePath } from "./router/rewriter.js";
 import { matchRoute } from "./router/router.js";
 import type {
@@ -32,17 +32,28 @@ import type {
 	TollboothRequest,
 	UpstreamConfig,
 	UpstreamResponse,
+	VerificationCacheConfig,
+	VerificationCacheStore,
 } from "./types.js";
-import { resolveFacilitatorUrl } from "./x402/facilitator.js";
-import { encodePaymentResponse, HEADERS } from "./x402/headers.js";
+import { MemoryVerificationCacheStore } from "./verification-cache/store.js";
+import {
+	DEFAULT_FACILITATOR,
+	resolveFacilitatorUrl,
+} from "./x402/facilitator.js";
+import {
+	decodePaymentSignature,
+	encodePaymentResponse,
+	extractPayerFromHeader,
+	HEADERS,
+} from "./x402/headers.js";
 import {
 	buildPaymentRequirements,
 	createPaymentRequiredResponse,
 	executeSettlement,
 	PaymentError,
 	type PaymentRequirementsPayload,
-	processPayment,
 	processVerification,
+	type VerificationResult,
 } from "./x402/middleware.js";
 
 interface AfterResponseCtx {
@@ -64,6 +75,8 @@ interface AfterResponseCtx {
 	};
 	url: URL;
 	start: number;
+	vcCacheKey: string | null;
+	vcConfig: VerificationCacheConfig | undefined;
 }
 
 interface FinalResponseCtx {
@@ -95,10 +108,15 @@ interface ErrorCtx {
  */
 export function createGateway(
 	config: TollboothConfig,
-	options?: { rateLimitStore?: RateLimitStore },
+	options?: {
+		rateLimitStore?: RateLimitStore;
+		verificationCacheStore?: VerificationCacheStore;
+	},
 ): TollboothGateway {
 	let server: ReturnType<typeof Bun.serve> | null = null;
 	const rateLimitStore = options?.rateLimitStore ?? new MemoryRateLimitStore();
+	const verificationCacheStore =
+		options?.verificationCacheStore ?? new MemoryVerificationCacheStore();
 
 	const discoveryPayload = config.gateway.discovery
 		? JSON.stringify(generateDiscoveryMetadata(config))
@@ -183,10 +201,12 @@ export function createGateway(
 		const settlementStrategy = route.settlement ?? "before-response";
 
 		try {
+			// ── Identity (shared by rate limiting + verification cache) ──────
+			const identity = extractIdentity(request);
+
 			// ── Rate limiting ────────────────────────────────────────────────
 			const rateLimit = resolveRateLimit(route.rateLimit, config);
 			if (rateLimit) {
-				const identity = extractIdentity(request);
 				const rlResult = await checkRateLimit(
 					rateLimitStore,
 					identity,
@@ -311,6 +331,16 @@ export function createGateway(
 				),
 			}));
 
+			// ── Verification cache config ────────────────────────────────────
+			const vcConfig = resolveVerificationCache(
+				route.verificationCache,
+				config,
+			);
+			const vcCacheKey =
+				identity.startsWith("payer:") && vcConfig
+					? `vc:${routeKey}:${identity}`
+					: null;
+
 			// ── Branch on settlement strategy ────────────────────────────────
 			if (settlementStrategy === "after-response") {
 				return await handleAfterResponse({
@@ -327,20 +357,25 @@ export function createGateway(
 					routeKey,
 					url,
 					start,
+					vcCacheKey,
+					vcConfig,
 				});
 			}
 
 			// ── before-response (default) ────────────────────────────────────
-			const paymentResult = await processPayment(
+			const verification = await cachedVerification(
 				request,
 				requirements,
 				facilitators,
+				vcCacheKey,
+				vcConfig,
 			);
 
-			if (!paymentResult) {
+			if (!verification) {
 				return createPaymentRequiredResponse(requirements);
 			}
 
+			const paymentResult = await executeSettlement(verification);
 			const settlement = paymentResult.settlement;
 			tollboothReq.payer = settlement.payer;
 
@@ -438,14 +473,18 @@ export function createGateway(
 			routeKey,
 			url,
 			start,
+			vcCacheKey,
+			vcConfig,
 		} = ctx;
 		let rawBody = ctx.rawBody;
 
 		// ── Verify only (no settle yet) ──────────────────────────────────
-		const verification = await processVerification(
+		const verification = await cachedVerification(
 			request,
 			requirements,
 			facilitators,
+			vcCacheKey,
+			vcConfig,
 		);
 
 		if (!verification) {
@@ -793,8 +832,82 @@ export function createGateway(
 			if (rateLimitStore instanceof MemoryRateLimitStore) {
 				rateLimitStore.destroy();
 			}
+			if (verificationCacheStore instanceof MemoryVerificationCacheStore) {
+				verificationCacheStore.destroy();
+			}
 		},
 	};
+
+	/**
+	 * Wrap processVerification with optional caching.
+	 * On cache hit, skip the facilitator /verify call and build a VerificationResult
+	 * from the cached requirement index + current request's payment payload.
+	 * On cache miss, verify normally and cache the result.
+	 *
+	 * Note: on cache hit the facilitator /verify call is skipped but /settle still
+	 * runs per-request, so invalid payments will fail at settlement time.
+	 */
+	async function cachedVerification(
+		request: Request,
+		requirements: PaymentRequirementsPayload[],
+		facilitators: { url: string }[],
+		cacheKey: string | null,
+		cacheConfig: VerificationCacheConfig | undefined,
+	): Promise<VerificationResult | null> {
+		// Try cache
+		if (cacheKey && cacheConfig) {
+			const cached = await verificationCacheStore.get(cacheKey);
+			if (cached) {
+				const paymentHeader = request.headers.get(HEADERS.PAYMENT_SIGNATURE);
+				if (!paymentHeader) return null;
+				const paymentPayload = decodePaymentSignature(paymentHeader);
+				const idx = cached.requirementIndex;
+				if (idx >= requirements.length) {
+					log.warn("verification_cache_stale", {
+						route: cacheKey,
+						cachedIndex: idx,
+						requirementsCount: requirements.length,
+					});
+				}
+				const facilitator = facilitators[idx] ?? facilitators[0];
+				log.info("verification_cache_hit", { route: cacheKey });
+				return {
+					payer: extractPayerFromHeader(paymentHeader),
+					paymentPayload,
+					requirement: requirements[idx] ?? requirements[0],
+					facilitator,
+					facilitatorUrl: facilitator.url ?? DEFAULT_FACILITATOR,
+				};
+			}
+		}
+
+		// Cache miss — verify with facilitator
+		if (cacheKey) {
+			log.debug("verification_cache_miss", { route: cacheKey });
+		}
+		const verification = await processVerification(
+			request,
+			requirements,
+			facilitators,
+		);
+
+		// Cache successful verification
+		if (verification && cacheKey && cacheConfig) {
+			const idx = requirements.indexOf(verification.requirement);
+			const ttlMs = parseWindow(cacheConfig.ttl);
+			await verificationCacheStore.set(
+				cacheKey,
+				{ requirementIndex: idx >= 0 ? idx : 0 },
+				ttlMs,
+			);
+			log.debug("verification_cache_set", {
+				route: cacheKey,
+				ttl: cacheConfig.ttl,
+			});
+		}
+
+		return verification;
+	}
 }
 
 function shouldSettleByDefault(status: number): boolean {
@@ -817,4 +930,11 @@ function isUpstreamResponse(result: unknown): result is UpstreamResponse {
 		"status" in result &&
 		"headers" in result
 	);
+}
+
+function resolveVerificationCache(
+	routeCache: VerificationCacheConfig | undefined,
+	config: TollboothConfig,
+): VerificationCacheConfig | undefined {
+	return routeCache ?? config.defaults.verificationCache;
 }
